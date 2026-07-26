@@ -1,0 +1,17 @@
+# Node
+node_modules/
+dist/
+.env
+.env.*.local
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.env
+
+# Misc
+.DS_Store
+coverage/
+.turbo/
