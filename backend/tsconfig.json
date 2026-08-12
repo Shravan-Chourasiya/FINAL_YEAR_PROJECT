@@ -13,13 +13,6 @@
     /* Project Structure */
     "rootDir": "./src",
     "outDir": "./dist",
-    /* Path Aliases */
-    "baseUrl": "./src",
-    "paths": {
-      "@/*": [
-        "*"
-      ]
-    },
     /* Strict Type Checking */
     "strict": true,
     "noUncheckedIndexedAccess": true,
