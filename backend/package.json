@@ -2,7 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "SynthView AI backend — auth, sessions, real-time interview orchestration",
-  "main": "dist/index.js",
+  "main": "dist/server.js",
   "type": "module",
   "engines": {
     "node": "^24.0.0"
@@ -15,9 +15,9 @@
     }
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
