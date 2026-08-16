@@ -11,6 +11,9 @@ __pycache__/
 *.pyc
 .env
 
+# PS scripts
+*.ps1
+
 # Misc
 .DS_Store
 coverage/
