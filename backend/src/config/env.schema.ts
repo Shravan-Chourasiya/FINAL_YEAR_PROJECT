@@ -8,7 +8,9 @@ const envSchema = z.object({
   REDIS_URI: z.string().url(),
   JWT_SECRET: z.string().min(64).max(512),
   CORS_ORIGIN: z.string().url(),
-  COOKIE_DOMAIN: z.string().url().optional(),
+  COOKIE_DOMAIN: z.string().optional(),
+  BASE_URL:z.string().url(),
+  API_VERSION:z.string()
 });
 
 export default envSchema;
