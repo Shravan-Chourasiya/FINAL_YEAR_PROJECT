@@ -5,8 +5,8 @@ import { logger } from "../utils/logger.js";
 import type { ErrorResponse } from "../types/response.js";
 import { ErrorCodes } from "../constants/errorCodes.js";
 import type { StandardRequest } from "../types/request.js";
-import { JsonWebTokenError, NotBeforeError, TokenExpiredError } from "jsonwebtoken";
-import { AppError } from "../utils/AppError.js";
+import { AppError } from "../utils/appError.js";
+
 
 function getRoutePath(req: Request): string | undefined {
   const route = (req as { route?: { path?: string } }).route;
@@ -20,13 +20,13 @@ export function toErrorLike(value: unknown): {
 } {
   if (value instanceof Error) {
     // JWT errors
-    if (value instanceof JsonWebTokenError) {
+    if (value.message.includes("JsonWebTokenError")) {
       return { name: "JWTError", message: value.message, stack: value.stack };
     }
-    if (value instanceof TokenExpiredError) {
+    if (value.message.includes("TokenExpiredError")) {
       return { name: "JWTExpiredError", message: value.message, stack: value.stack };
     }
-    if (value instanceof NotBeforeError) {
+    if (value.message.includes("NotBeforeError")) {
       return { name: "JWTNotBeforeError", message: value.message, stack: value.stack };
     }
 
