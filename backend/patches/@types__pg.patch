@@ -1,0 +1,10 @@
+--- a/node_modules/@types/pg/package.json
++++ b/node_modules/@types/pg/package.json
+@@ -1,7 +1,8 @@
+   "exports": {
+     ".": {
+       "import": "./index.d.mts",
+-      "require": "./index.d.ts"
++      "require": "./index.d.ts",
++      "types": "./index.d.mts"
+     },
