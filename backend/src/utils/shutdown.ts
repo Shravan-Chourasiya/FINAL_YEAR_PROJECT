@@ -1,5 +1,6 @@
 import type { Server } from "node:http";
 import { logger } from "./logger.js";
+import { getPgPool } from "../db/postgres.init.js";
 
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -49,10 +50,8 @@ export async function gracefulShutdown(server: Server, signal: NodeJS.Signals): 
 
     logger.info("HTTP server closed");
 
- 
-    //:TODO
-    // await disconnectDatabase();
-    // logger.info("Database connection closed");
+    await getPgPool().end();
+    logger.info("PostgreSQL pool closed");
 
     // await disconnectRedis();
     // logger.info("Redis connection closed");
