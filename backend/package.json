@@ -9,6 +9,10 @@
   },
   "scripts": {
     "postinstall": "node -e \"const fs=require('fs'); const p=JSON.parse(fs.readFileSync('./node_modules/@types/pg/package.json','utf8')); if(!p.exports['.']['types']){p.exports['.']['types']='./index.d.mts'; fs.writeFileSync('./node_modules/@types/pg/package.json',JSON.stringify(p,null,2));}\"",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "dev": "tsx watch ./server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",

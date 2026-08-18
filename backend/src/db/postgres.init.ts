@@ -1,51 +1,54 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { logger } from "../utils/logger.js";
-import { env } from "../config/env.js";
 import { Pool, type PoolConfig } from "pg";
+import { env } from "../config/env.js";
+import { logger } from "../utils/logger.js";
 
-let pool: Pool | undefined;
-let db: ReturnType<typeof drizzle> | undefined;
+type PgDb = ReturnType<typeof drizzle>;
 
-export function getPgDbConn() {
-  if (db) {
-    return db;
-  }
-
-  if (!pool) {
-    const poolConfig: PoolConfig = {
-      connectionString: env.POSTGRES_URI,
-      ssl: {
-        rejectUnauthorized: true,
-      },
-      max: 5,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 15_000,
-    };
-
-    pool = new Pool(poolConfig);
-  }
-
-  db = drizzle({ client: pool });
-  return db;
+interface PgSingleton {
+  pool: Pool;
+  db: PgDb;
 }
 
-export async function testPgConnection() {
-  const pgDb = getPgDbConn();
-  const result = await pgDb.execute("select 1");
-  if (result?.rows.length > 0) {
-    logger.info("PostgreSQL connection successful.");
-    return true;
-  }
-  logger.error("PostgreSQL connection check returned no rows.");
-  return false;
+let instance: PgSingleton | undefined;
+
+function createInstance(): PgSingleton {
+  const poolConfig: PoolConfig = {
+    connectionString: env.POSTGRES_URI,
+    ssl: { rejectUnauthorized: true },
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 15_000,
+  };
+
+  const pool = new Pool(poolConfig);
+  const db = drizzle({ client: pool });
+  return { pool, db };
 }
 
-export function getPgPool() {
-  if (!pool) {
-    getPgDbConn();
-  }
+export function getPgDbConn(): PgDb {
+  instance ??= createInstance();
+  return instance.db;
+}
 
-  return pool as Pool;
+export function getPgPool(): Pool {
+  instance ??= createInstance();
+  return instance.pool;
+}
+
+export async function testPgConnection(): Promise<boolean> {
+  try {
+    const result = await getPgDbConn().execute("select 1");
+    if (result?.rows.length > 0) {
+      logger.info({ key: "POSTGRES_URI" }, "PostgreSQL connection successful.");
+      return true;
+    }
+    logger.error({ key: "POSTGRES_URI" }, "PostgreSQL connection check returned no rows.");
+    return false;
+  } catch (err) {
+    logger.error({ key: "POSTGRES_URI", err }, "PostgreSQL connection failed.");
+    return false;
+  }
 }
 
 export default getPgDbConn;
