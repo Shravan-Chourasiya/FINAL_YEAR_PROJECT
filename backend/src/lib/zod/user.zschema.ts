@@ -22,7 +22,7 @@ export const userSchema: z.ZodType<UserType> = z.object({
 
   // User Account fields
   isVerified: z.boolean().default(false),
-  accountStatus: z.enum(["blacklisted", "active", "suspended", "deleted"]).default("active"),
+  accountStatus: z.enum(["active", "suspended", "disabled", "deleted"]).default("active"),
   oauthProvider: z.enum(["google", "facebook", "github", "none"]).default("none"),
   isOauthEnabled: z.boolean().default(false),
 

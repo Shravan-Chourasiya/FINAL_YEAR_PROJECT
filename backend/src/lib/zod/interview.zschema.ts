@@ -71,7 +71,7 @@ export const interviewSchema: z.ZodType<InterviewType> = z.object({
       .string()
       .max(3000, { message: "Helpful resources are too long" })
       .optional(),
-  }),
+  }).optional(),
 
   // Timestamps
   createdAt: z.date(),
