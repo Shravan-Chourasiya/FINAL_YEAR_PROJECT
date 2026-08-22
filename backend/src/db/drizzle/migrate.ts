@@ -1,14 +1,15 @@
-// scripts/migrate.ts
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { getPgDb, getPgPool } from "../postgres.init.js";
 import { env } from "../../config/env.js";
 
 async function main() {
-  const db = drizzle(env.POSTGRES_URI!);
+  const db = getPgDb();
+  const pool = getPgPool();
 
   console.log("Running migrations...");
   await migrate(db, { migrationsFolder: "./src/db/migrations" });
 
+  await pool.end();
   console.log("Migrations applied and connection closed");
 }
 

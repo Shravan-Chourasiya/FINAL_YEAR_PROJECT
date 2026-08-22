@@ -1,5 +1,6 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
+import { sql } from "drizzle-orm";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
@@ -22,11 +23,11 @@ function createInstance(): PgSingleton {
   };
 
   const pool = new Pool(poolConfig);
-  const db = drizzle({ client: pool });
+  const db = drizzle({ client: pool, logger: true });
   return { pool, db };
 }
 
-export function getPgDbConn(): PgDb {
+export function getPgDb(): PgDb {
   instance ??= createInstance();
   return instance.db;
 }
@@ -38,7 +39,7 @@ export function getPgPool(): Pool {
 
 export async function testPgConnection(): Promise<boolean> {
   try {
-    const result = await getPgDbConn().execute("select 1");
+    const result = await getPgDb().execute(sql`select 1`);
     if (result?.rows.length > 0) {
       logger.info({ key: "POSTGRES_URI" }, "PostgreSQL connection successful.");
       return true;
@@ -51,4 +52,4 @@ export async function testPgConnection(): Promise<boolean> {
   }
 }
 
-export default getPgDbConn;
+export default getPgDb;
