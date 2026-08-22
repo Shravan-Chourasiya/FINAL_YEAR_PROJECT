@@ -22,7 +22,7 @@ export type InterviewType = {
   // Interview Outcome fields
   interviewQuestionsGeneratedCount: number | undefined;
   interviewQuestionsAnsweredCount?: number | undefined;
-  interviewOutcome: {
+  interviewOutcome?: {
     finalScore: number;
     finalVerdict: string;
     questionWiseScore: {

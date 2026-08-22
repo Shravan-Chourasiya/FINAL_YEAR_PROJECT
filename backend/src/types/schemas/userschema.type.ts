@@ -6,7 +6,7 @@ export type UserType = {
   username: string;
   // User Account fields
   isVerified: boolean;
-  accountStatus: "blacklisted" | "active" | "suspended" | "deleted";
+  accountStatus: "active" | "suspended" | "disabled" | "deleted";
   oauthProvider: "google" | "facebook" | "github" | "none";
   isOauthEnabled: boolean;
   // User Profile fields
