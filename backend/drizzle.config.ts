@@ -1,11 +1,15 @@
 import { defineConfig } from "drizzle-kit";
-import { env } from "./src/config/env.js";
+import { config } from "dotenv";
+
+config();
 
 export default defineConfig({
   schema: "./src/modules/auth/schemas/*.ts",
-  out: "./migrations",
+  out: "./src/db/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: env.POSTGRES_URI,
+    url: process.env.POSTGRES_URI!,
   },
+  verbose: true,
+  strict: true,
 });
