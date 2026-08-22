@@ -9,10 +9,11 @@ import { requestIdMiddleware } from "./middlewares/requestId.middleware.js";
 import { ErrorCodes } from "./constants/errorCodes.js";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 import { createAuthRouter } from "./routes/auth.routes.js";
-import getPgDbConn from "./db/postgres.init.js";
+import getPgDbConn, { getPgPool } from "./db/postgres.init.js";
 
 const app = express();
-const dbconn= getPgDbConn();
+export const dbPool= getPgPool();
+const dbConn=getPgDbConn();
 
 
 //****************************************** Middleware Configuration ******************************************//
