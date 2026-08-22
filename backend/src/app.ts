@@ -9,11 +9,14 @@ import { requestIdMiddleware } from "./middlewares/requestId.middleware.js";
 import { ErrorCodes } from "./constants/errorCodes.js";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 import { createAuthRouter } from "./routes/auth.routes.js";
-import getPgDbConn, { getPgPool } from "./db/postgres.init.js";
-
+import getPgDb from "./db/postgres.init.js";
+import { config } from "dotenv";
+config();
 const app = express();
-export const dbPool= getPgPool();
-const dbConn=getPgDbConn();
+
+
+//****************************************** Database Connection ******************************************//
+const dbConn = getPgDb();
 
 
 //****************************************** Middleware Configuration ******************************************//
