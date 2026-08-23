@@ -9,7 +9,11 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(64).max(512),
   CORS_ORIGIN: z.string().url(),
   COOKIE_DOMAIN: z.string().optional(),
-  API_VERSION:z.string()
+  API_VERSION: z.string(),
+  GMAIL_USER_EMAIL: z.string().email(),
+  GMAIL_CLIENT_ID: z.string(),
+  GMAIL_CLIENT_SECRET: z.string(),
+  GMAIL_REFRESH_TOKEN: z.string(),
 });
 
 export default envSchema;
