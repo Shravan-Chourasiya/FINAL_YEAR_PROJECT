@@ -19,3 +19,6 @@ __pycache__/
 coverage/
 .turbo/
 backend/docs/temp/postgres-init.md
+
+*.sql
+*.json
