@@ -14,6 +14,9 @@ const envSchema = z.object({
   GMAIL_CLIENT_ID: z.string(),
   GMAIL_CLIENT_SECRET: z.string(),
   GMAIL_REFRESH_TOKEN: z.string(),
+  REDIS_HOST: z.string(),
+  REDIS_PORT: z.coerce.number().int().positive().default(6379),
+  REDIS_PASSWORD: z.string().optional()
 });
 
 export default envSchema;
