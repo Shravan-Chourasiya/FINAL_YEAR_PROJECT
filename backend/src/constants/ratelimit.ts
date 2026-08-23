@@ -1,0 +1,50 @@
+/**
+ * Rate limit configurations for all route types.
+ * windowMs — sliding window duration in milliseconds
+ * limit    — max requests allowed per window per IP
+ */
+export const RateLimits = {
+  /** General API — broad protection for all routes */
+  GLOBAL: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 200,
+  },
+
+  /** Auth routes — register, login, logout */
+  AUTH: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 20,
+  },
+
+  /** OTP verification — tighter to prevent brute force */
+  OTP_VERIFY: {
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    limit: 5,
+  },
+
+  /** OTP resend — prevent OTP spam */
+  OTP_RESEND: {
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    limit: 3,
+  },
+
+  /** Password reset request */
+  PASSWORD_RESET: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    limit: 5,
+  },
+
+  /** Interview creation and management */
+  INTERVIEW: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    limit: 30,
+  },
+
+  /** AI-powered endpoints — expensive, tightly limited */
+  AI: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    limit: 10,
+  },
+} as const;
+
+export type RateLimitKey = keyof typeof RateLimits;
