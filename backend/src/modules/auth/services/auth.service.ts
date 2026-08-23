@@ -48,7 +48,9 @@ export async function verifyOtpService(input: VerifyOtpInput): Promise<void> {
   const result = await otpService.verifyOTP(input.email, input.otp, OTP_PURPOSE);
 
   if (!result.success) {
-    const isRateLimit = result.message.toLowerCase().includes("too many");
+    const isRateLimit =
+      result.message.toLowerCase().includes("too many") ||
+      result.message.toLowerCase().includes("maximum attempts");
     throw new AppError(
       result.message,
       isRateLimit ? StatusCodes.TOO_MANY_REQUESTS : StatusCodes.UNAUTHORIZED,
@@ -57,7 +59,16 @@ export async function verifyOtpService(input: VerifyOtpInput): Promise<void> {
     );
   }
 
-  const registrationData = JSON.parse(result.newValue ?? "{}") as {
+  if (!result.newValue) {
+    throw new AppError(
+      "Registration data missing, please register again",
+      StatusCodes.UNPROCESSABLE_ENTITY,
+      ErrorCodes.VALIDATION_FAILED,
+      { isOperational: true }
+    );
+  }
+
+  const registrationData = JSON.parse(result.newValue) as {
     username: string;
     password: string;
     firstName?: string;
