@@ -2,6 +2,7 @@ import compression from "compression";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { StatusCodes } from "http-status-codes";
 import { env } from "./config/env.js";
 import { requestLogger } from "./utils/logger.js";
@@ -14,16 +15,15 @@ import { config } from "dotenv";
 config();
 const app = express();
 
-
 //****************************************** Database Connection ******************************************//
 const dbConn = getPgDb();
 
-
 //****************************************** Middleware Configuration ******************************************//
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(compression());
 app.use(express.json());
+app.use(cookieParser());
 app.use(requestIdMiddleware);
 app.use(requestLogger);
 
