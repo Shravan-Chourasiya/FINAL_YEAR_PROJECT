@@ -6,6 +6,7 @@ export const OTP_PURPOSE = {
   REGISTER: "registration",
   FORGOT_PASSWORD: "forgot_password",
   RECOVER_ACCOUNT: "recover_account",
+  UPDATE_EMAIL: "update_email",
 } as const;
 
 // ── Session ───────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const COOKIE_NAMES = {
   ACCESS: "access_token",
   REFRESH: "refresh_token",
+  CSRF: "csrf_token",
   DEVICE_ID: "device_id",
 } as const;
 
@@ -29,5 +31,34 @@ export const COOKIE_NAMES = {
 export const COOKIE_MAX_AGE = {
   ACCESS: 15 * 60 * 1000,           // 15 minutes
   REFRESH: 30 * 24 * 60 * 60 * 1000, // 30 days
-  DEVICE_ID: 365 * 24 * 60 * 60 * 1000, // 1 year
+  DEVICE_ID: 30 * 24 * 60 * 60 * 1000, // 30 days
+  CSRF: 30 * 24 * 60 * 60 * 1000, // 30 days
 } as const;
+
+// ── Cookie Configurations ──────────────────────────────────────────────────────
+export const COOKIE_CONFIG = {
+  ACCESS: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV !== "development",
+    sameSite: "lax" as const,
+    maxAge: COOKIE_MAX_AGE.ACCESS,
+  },
+  REFRESH: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV !== "development",
+    sameSite: "lax" as const,
+    maxAge: COOKIE_MAX_AGE.REFRESH,
+  },
+  DEVICE_ID: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV !== "development",
+    sameSite: "lax" as const,
+    maxAge: COOKIE_MAX_AGE.DEVICE_ID,
+  },
+  CSRF: {
+    httpOnly: false,
+    secure: process.env.NODE_ENV !== "development",
+    sameSite: "lax" as const,
+    maxAge: COOKIE_MAX_AGE.REFRESH,
+  },
+};

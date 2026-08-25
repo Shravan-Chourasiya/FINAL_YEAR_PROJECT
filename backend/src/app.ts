@@ -12,6 +12,8 @@ import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 import { createAuthRouter } from "./routes/auth.routes.js";
 import getPgDb from "./db/postgres.init.js";
 import { config } from "dotenv";
+import { corsOptions } from "./constants/cors.js";
+import { csrfTokenMiddleware } from "./middlewares/csrf.middleware.js";
 config();
 const app = express();
 
@@ -20,10 +22,12 @@ const dbConn = getPgDb();
 
 //****************************************** Middleware Configuration ******************************************//
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+app.use(cors(corsOptions));
 app.use(compression());
-app.use(express.json());
+app.use(express.json( { limit: "184kb" }));
 app.use(cookieParser());
+app.use(express.urlencoded({ extended: true ,limit: "184kb" }));
+app.use(csrfTokenMiddleware);
 app.use(requestIdMiddleware);
 app.use(requestLogger);
 
