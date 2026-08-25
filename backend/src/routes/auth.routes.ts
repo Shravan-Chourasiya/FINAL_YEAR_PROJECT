@@ -5,12 +5,16 @@ import { createRateLimiter } from "../middlewares/rateLimiter.middleware.js";
 import {
   registerSchema, verifyOtpSchema, loginSchema,
   forgotPasswordSchema, forgotPasswordOtpVerifySchema, recoverAccountOtpSchema,
+  updatePasswordSchema,updateEmailSchema, emailUpdateOtpVerifySchema,
 } from "../modules/auth/zodschemas/auth.zschema.js";
 import {
   registerUserController, verifyOtpController, loginController,
   refreshTokenController, logoutController, deleteAccountController,
   recoverAccountController, recoverAccountOtpController,
   forgotPasswordController, forgotPasswordOtpVerifyController,
+  updatePasswordController,
+  emailUpdateOtpVerifyController,
+  updateEmailController,
 } from "../modules/auth/controllers/auth.controller.js";
 
 const authLimiter        = createRateLimiter("AUTH");
@@ -46,13 +50,13 @@ export const createAuthRouter = (): Router => {
     refreshTokenController,
   );
 
-  router.post("/auth/logout",
+  router.post("/usr/logout",
     requireAuth,
     logoutController,
   );
 
   // ── Account Management ───────────────────────────────────────────────────────
-  router.delete("/auth/account",
+  router.delete("/usr/account",
     requireAuth,
     deleteAccountController,
   );
@@ -80,6 +84,27 @@ export const createAuthRouter = (): Router => {
     otpVerifyLimiter,
     validateBody(forgotPasswordOtpVerifySchema),
     forgotPasswordOtpVerifyController,
+  );
+
+  // ── Update Password ──────────────────────────────────────────────────────────
+  router.post("/usr/update-password",
+    passwordLimiter,
+    validateBody(updatePasswordSchema),
+    updatePasswordController,
+  );
+
+  // ── Update Email ──────────────────────────────────────────────────────────
+  router.post(
+    "/usr/update-email",
+    passwordLimiter,
+    validateBody(updateEmailSchema),
+    updateEmailController,
+  );
+
+  router.post("/usr/update-email/verify",
+    passwordLimiter,
+    validateBody(updateEmailSchema),
+    emailUpdateOtpVerifyController,
   );
 
   return router;
