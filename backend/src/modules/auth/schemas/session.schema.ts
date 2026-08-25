@@ -17,6 +17,7 @@ export const sessionsTable = pgTable("sessions", {
   tokenFamily: uuid("token_family").notNull(),
   refreshToken: varchar("refresh_token", { length: 512 }).notNull(),
   accessToken: varchar("access_token", { length: 512 }).notNull(),
+  csrfToken: varchar("csrf_token", { length: 512 }).notNull(),
 
   // Status fields
   isActive: boolean("is_active").notNull().default(true),
