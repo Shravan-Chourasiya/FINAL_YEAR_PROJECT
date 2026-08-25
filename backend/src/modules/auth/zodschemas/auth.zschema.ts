@@ -40,6 +40,28 @@ export const forgotPasswordOtpVerifySchema = z.object({
   path: ["confirmPassword"],
 });
 
+export const updatePasswordSchema = z.object({
+  email: z.string().regex(userRegex.emailRegex, { message: "Invalid email format" }),
+  currentPassword: z.string().min(1, { message: "Current password is required" }),
+  newPassword: z.string().regex(userRegex.passwordRegex, {
+    message: "New password must be at least 8 characters long and contain at least one letter and one number",
+  }),}).refine((d) => d.currentPassword !== d.newPassword, {
+  message: "New password cannot be the same as the current password",
+});
+
+export const updateEmailSchema = z.object({
+  email: z.string().regex(userRegex.emailRegex, { message: "Invalid email format" }),
+});
+
+export const emailUpdateOtpVerifySchema = z
+  .object({
+    email: z.string().regex(userRegex.emailRegex, { message: "Invalid email format" }),
+    otp: z
+      .string()
+      .length(6, { message: "OTP must be exactly 6 digits" })
+      .regex(/^\d{6}$/, { message: "OTP must contain only digits" }),
+  });
+
 export const recoverAccountOtpSchema = z.object({
   email: z.string().regex(userRegex.emailRegex, { message: "Invalid email format" }),
   otp: z.string().length(6, { message: "OTP must be exactly 6 digits" }).regex(/^\d{6}$/, { message: "OTP must contain only digits" }),
@@ -50,4 +72,7 @@ export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ForgotPasswordOtpVerifyInput = z.infer<typeof forgotPasswordOtpVerifySchema>;
+export type UpdatePasswordInput = z.infer<typeof updatePasswordSchema>;
+export type UpdateEmailInput = z.infer<typeof updateEmailSchema>;
+export type EmailUpdateOtpVerifyInput = z.infer<typeof emailUpdateOtpVerifySchema>;
 export type RecoverAccountOtpInput = z.infer<typeof recoverAccountOtpSchema>;
