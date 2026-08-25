@@ -1,10 +1,9 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { redisClient } from "../config/redis.init.js";
+import { ACCESS_TOKEN_TTL, REFRESH_TOKEN_TTL, REFRESH_TOKEN_TTL_SECONDS } from "../constants/auth.constants.js";
 export {
-  ACCESS_TOKEN_TTL,
-  REFRESH_TOKEN_TTL,
-  REFRESH_TOKEN_TTL_SECONDS,
+
   COOKIE_NAMES,
 } from "../constants/auth.constants.js";
 
@@ -39,10 +38,3 @@ export async function isTokenBlacklisted(token: string): Promise<boolean> {
   const result = await redisClient.exists(`bl:${token}`);
   return result === 1;
 }
-
-export const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: env.NODE_ENV === "production",
-  sameSite: "strict" as const,
-  domain: env.COOKIE_DOMAIN,
-};
