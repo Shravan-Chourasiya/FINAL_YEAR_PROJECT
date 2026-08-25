@@ -31,14 +31,21 @@ export class AppError extends Error {
   public readonly errorCode: ErrorCode;
   public readonly details: unknown;
   public readonly isOperational: boolean;
+  public readonly isClientSafe: boolean;
 
-  constructor(message: string, statusCode: number, errorCode: ErrorCode, options?: AppErrorOptions) {
+  constructor(
+    message: string,
+    statusCode: number,
+    errorCode: ErrorCode,
+    options?: AppErrorOptions,
+  ) {
     super(message);
     this.name = "AppError";
     this.statusCode = statusCode;
     this.errorCode = errorCode;
     this.details = options?.details;
     this.isOperational = options?.isOperational ?? statusCode < 500;
+    this.isClientSafe = statusCode < 500;
 
     // Maintain proper prototype chain for instanceof checks.
     Object.setPrototypeOf(this, new.target.prototype);

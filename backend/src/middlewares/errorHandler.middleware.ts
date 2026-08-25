@@ -7,7 +7,6 @@ import { ErrorCodes } from "../constants/errorCodes.js";
 import type { StandardRequest } from "../types/request.js";
 import { AppError } from "../utils/appError.js";
 
-
 function getRoutePath(req: Request): string | undefined {
   const route = (req as { route?: { path?: string } }).route;
   return route?.path;
@@ -19,14 +18,16 @@ export function toErrorLike(value: unknown): {
   stack: string | undefined;
 } {
   if (value instanceof Error) {
-    // JWT errors
-    if (value.message.includes("JsonWebTokenError")) {
+    // JWT errors — matched on `.name`, which is what jsonwebtoken actually sets.
+    // (Matching on `.message.includes(...)` does not work: the message text
+    // does not contain the error class name.)
+    if (value.name === "JsonWebTokenError") {
       return { name: "JWTError", message: value.message, stack: value.stack };
     }
-    if (value.message.includes("TokenExpiredError")) {
+    if (value.name === "TokenExpiredError") {
       return { name: "JWTExpiredError", message: value.message, stack: value.stack };
     }
-    if (value.message.includes("NotBeforeError")) {
+    if (value.name === "NotBeforeError") {
       return { name: "JWTNotBeforeError", message: value.message, stack: value.stack };
     }
 
@@ -58,19 +59,37 @@ export function toErrorLike(value: unknown): {
  * Centralized Express error-handling middleware.
  *
  * This middleware:
- * - Catches AppError and maps it to the standard ErrorResponse envelope.
- * - Catches unexpected errors and produces a sanitized 500 response.
- * - Logs unexpected errors with useful context.
- * - Never exposes internal implementation details to clients.
- * - Never exposes stack traces to clients.
- * - Never exposes database/Redis/infrastructure internals.
+ * - Catches AppError and maps it to the standard ErrorResponse envelope,
+ *   but ONLY exposes the AppError's message/details to the client when the
+ *   error is client-safe (4xx). A 5xx AppError — even if constructed with a
+ *   leaky message by mistake elsewhere in the codebase — is logged in full
+ *   but the client still receives the generic sanitized response. This is a
+ *   structural safeguard, not just a convention: it does not depend on every
+ *   call site correctly hand-writing safe messages.
+ * - Catches unexpected (non-AppError) errors and produces a sanitized 500
+ *   response.
+ * - Logs unexpected AND internal (5xx AppError) errors with structured
+ *   context, including stack traces, server-side only.
+ * - Never exposes internal implementation details, stack traces, or
+ *   database/Redis/infrastructure internals to clients.
  *
  * **Must be registered LAST** among Express middleware that handles requests.
+ *
+ * PREREQUISITE: async route handlers must forward thrown errors to `next()`
+ * for this middleware to ever run on them. Ensure `express-async-errors` is
+ * imported at app entry, or every async handler is wrapped to catch and
+ * forward rejections. Without this, async errors become unhandled
+ * rejections and never reach this handler at all.
  */
 export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, _next: NextFunction) => {
   const sreq = req as StandardRequest;
-  // Log unexpected errors with structured context
-  if (!(err instanceof AppError)) {
+
+  const isAppError = err instanceof AppError;
+  const isClientSafe = isAppError && err.isClientSafe;
+
+  // Log anything that isn't a client-safe AppError: unexpected errors AND
+  // 5xx AppErrors both warrant full server-side logging.
+  if (!isClientSafe) {
     const errorObj = toErrorLike(err);
     logger.error(
       {
@@ -80,18 +99,19 @@ export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, _next:
         route: getRoutePath(sreq),
         ...(sreq.userId && { userId: sreq.userId }),
         ...(sreq.userRole && { role: sreq.userRole }),
+        ...(isAppError && { errorCode: err.errorCode, statusCode: err.statusCode }),
         error: {
           name: errorObj.name,
           message: errorObj.message,
           stack: errorObj.stack,
         },
       },
-      "Unexpected error",
+      isAppError ? "Internal AppError (5xx)" : "Unexpected error",
     );
   }
 
-  // Map AppError to the standard error envelope
-  if (err instanceof AppError) {
+  // Client-safe AppError (4xx): safe to return message/details verbatim.
+  if (isClientSafe) {
     const response: ErrorResponse = {
       success: false,
       statusCode: err.statusCode,
@@ -105,7 +125,6 @@ export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, _next:
     return res.status(err.statusCode).json(response);
   }
 
-  // Map unexpected errors to a sanitized 500 response
   const response: ErrorResponse = {
     success: false,
     statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
