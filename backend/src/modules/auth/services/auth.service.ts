@@ -566,7 +566,7 @@ export async function updatePasswordService(input: UpdatePasswordInput): Promise
   }
 
   const isNewPasswordSameAsCurrent = input.currentPassword === input.newPassword;
-  if(isNewPasswordSameAsCurrent) {
+  if (isNewPasswordSameAsCurrent) {
     throw new AppError(
       "New password cannot be the same as the current password",
       StatusCodes.BAD_REQUEST,
@@ -594,9 +594,8 @@ export async function updatePasswordService(input: UpdatePasswordInput): Promise
     ...sessions.flatMap((s) => [blacklistToken(s.accessToken), blacklistToken(s.refreshToken)]),
   ]);
 
-  return ;
+  return;
 }
-
 
 // ── Update Email — Send OTP ────────────────────────────────────────────────
 
@@ -619,9 +618,7 @@ export async function updateEmailService(input: UpdateEmailInput): Promise<void>
 
 // ── Email Update — Verify OTP + Reset ─────────────────────────────────────
 
-export async function emailUpdateOtpVerifyService(
-  input: EmailUpdateOtpVerifyInput,
-): Promise<void> {
+export async function emailUpdateOtpVerifyService(input: EmailUpdateOtpVerifyInput): Promise<void> {
   const result = await otpService.verifyOTP(input.email, input.otp, OTP_PURPOSE.UPDATE_EMAIL);
 
   if (!result.success) {
@@ -644,14 +641,128 @@ export async function emailUpdateOtpVerifyService(
     .where(and(eq(sessionsTable.userId, result.userId!), eq(sessionsTable.isActive, true)));
 
   await Promise.all([
-    db
-      .update(usersTable)
-      .set({ email: result.newValue! })
-      .where(eq(usersTable.email, input.email)),
+    db.update(usersTable).set({ email: result.newValue! }).where(eq(usersTable.email, input.email)),
     db
       .update(sessionsTable)
       .set({ isActive: false, isRevoked: true })
       .where(eq(sessionsTable.userId, result.userId!)),
     ...sessions.flatMap((s) => [blacklistToken(s.accessToken), blacklistToken(s.refreshToken)]),
+  ]);
+}
+
+// ── Get Current User Info ─────────────────────────────────────────────────────
+export async function getMeService(userId: string) {
+  const db = getPgDb();
+
+  const [user] = await db
+    .select({
+      id: usersTable.id,
+      username: usersTable.username,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      bio: usersTable.bio,
+      userrole: usersTable.userrole,
+      accountStatus: usersTable.accountStatus,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
+  if (!user) {
+    throw new AppError("User not found", StatusCodes.NOT_FOUND, ErrorCodes.RESOURCE_NOT_FOUND, {
+      isOperational: true,
+    });
+  }
+
+  return user;
+}
+
+// ── Get All User Sessions ─────────────────────────────────────────────────────
+export async function getSessionsService(userId: string) {
+  const db = getPgDb();
+
+  const sessions = await db
+    .select({
+      id: sessionsTable.id,
+      deviceId: sessionsTable.deviceId,
+      deviceType: sessionsTable.deviceType,
+      totalSessionCount: sessionsTable.totalSessionCount,
+      activeSessionCount: sessionsTable.activeSessionCount,
+      ipAddress: sessionsTable.ipAddress,
+      userAgent: sessionsTable.userAgent,
+      loginCount: sessionsTable.loginCount,
+      failedLoginAttempts: sessionsTable.failedLoginAttempts,
+      isActive: sessionsTable.isActive,
+      isRevoked: sessionsTable.isRevoked,
+      isExpired: sessionsTable.isExpired,
+      expiryDate: sessionsTable.expiryDate,
+      createdAt: sessionsTable.createdAt,
+    })
+    .from(sessionsTable)
+    .where(eq(sessionsTable.userId, userId));
+
+  return sessions;
+}
+
+// ── Delete All Sessions ─────────────────────────────────────────────────────
+export async function deleteAllSessionsService(userId: string) {
+  const db = getPgDb();
+
+  const sessions = await db
+    .select({
+      accessToken: sessionsTable.accessToken,
+      refreshToken: sessionsTable.refreshToken,
+      tokenFamily: sessionsTable.tokenFamily,
+    })
+    .from(sessionsTable)
+    .where(and(eq(sessionsTable.userId, userId), eq(sessionsTable.isActive, true)));
+
+  if (!sessions) {
+    throw new AppError("No sessions found for the User", StatusCodes.NOT_FOUND, ErrorCodes.RESOURCE_NOT_FOUND, {
+      isOperational: true,
+    });
+  }
+  await Promise.all([
+    db
+      .update(sessionsTable)
+      .set({ isActive: false, isRevoked: true })
+      .where(eq(sessionsTable.userId, userId)),
+    ...sessions.flatMap((s) => [
+      blacklistToken(s.accessToken),
+      blacklistToken(s.refreshToken),
+      blacklistToken(s.tokenFamily),
+    ]),
+  ]);
+}
+
+// ── Delete Specific Session ─────────────────────────────────────────────────────
+export async function deleteSessionService(userId: string, sessionId: string) {
+  const db = getPgDb();
+
+  const [session] = await db
+    .select({
+      accessToken: sessionsTable.accessToken,
+      refreshToken: sessionsTable.refreshToken,
+      tokenFamily: sessionsTable.tokenFamily,
+    })
+    .from(sessionsTable)
+    .where(and(eq(sessionsTable.userId, userId), eq(sessionsTable.id, sessionId)))
+    .limit(1);
+
+  if (!session) {
+    throw new AppError("Session not found", StatusCodes.NOT_FOUND, ErrorCodes.RESOURCE_NOT_FOUND, {
+      isOperational: true,
+    });
+  }
+
+  await Promise.all([
+    db
+      .update(sessionsTable)
+      .set({ isActive: false, isRevoked: true })
+      .where(eq(sessionsTable.id, sessionId)),
+    blacklistToken(session.accessToken),
+    blacklistToken(session.refreshToken),
+    blacklistToken(session.tokenFamily),
   ]);
 }
