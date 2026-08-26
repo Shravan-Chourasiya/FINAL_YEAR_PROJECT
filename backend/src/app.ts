@@ -14,6 +14,9 @@ import getPgDb from "./db/postgres.init.js";
 import { config } from "dotenv";
 import { corsOptions } from "./constants/cors.js";
 import { csrfTokenMiddleware } from "./middlewares/csrf.middleware.js";
+import { sql } from "drizzle-orm";
+import { redisClient } from "./config/redis.init.js";
+import { readinessCheck } from "./utils/ready.js";
 config();
 const app = express();
 
@@ -24,9 +27,9 @@ const dbConn = getPgDb();
 app.use(helmet());
 app.use(cors(corsOptions));
 app.use(compression());
-app.use(express.json( { limit: "184kb" }));
+app.use(express.json({ limit: "184kb" }));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true ,limit: "184kb" }));
+app.use(express.urlencoded({ extended: true, limit: "184kb" }));
 app.use(csrfTokenMiddleware);
 app.use(requestIdMiddleware);
 app.use(requestLogger);
@@ -35,8 +38,23 @@ app.use(requestLogger);
 const AuthRoutes: express.Router = createAuthRouter();
 app.use(`/${env.API_VERSION}/`, AuthRoutes);
 
+
+//****************************************** Health Check Endpoints ******************************************//
 app.get("/health", (_req, res) => {
-  res.status(StatusCodes.OK).json({ status: "ok", env: env.NODE_ENV });
+  res.status(StatusCodes.OK).json({ status: "OK" });
+});
+
+app.get("/ping", (_req, res) => {
+  res.status(StatusCodes.OK).json({ status: "OK", ping: "pong" });
+});
+
+app.get("/ready", async (req, res) => {
+  const { statusCode, checks, healthy } = await readinessCheck(dbConn, redisClient);
+  res.status(statusCode).json({ status: healthy ? "OK" : "DEGRADED", checks });
+});
+
+app.get("/version", (req, res) => {
+  res.status(StatusCodes.OK).json({ status: "OK" });
 });
 
 //****************************************** 404 Handler ******************************************//
