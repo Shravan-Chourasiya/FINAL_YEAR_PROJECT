@@ -15,6 +15,10 @@ import {
   updatePasswordController,
   emailUpdateOtpVerifyController,
   updateEmailController,
+  getMeController,
+  getSessionsController,
+  deleteAllSessionsController,
+  deleteSessionController,
 } from "../modules/auth/controllers/auth.controller.js";
 
 const authLimiter        = createRateLimiter("AUTH");
@@ -107,5 +111,25 @@ export const createAuthRouter = (): Router => {
     emailUpdateOtpVerifyController,
   );
 
+  router.get('/usr/me',
+    requireAuth,
+    authLimiter,
+    getMeController,
+  )
+  router.get('/usr/sessions',
+    requireAuth,
+    authLimiter,
+    getSessionsController,
+  )
+  router.delete('/usr/sessions',
+    requireAuth,
+    authLimiter,
+    deleteAllSessionsController,
+  )
+  router.delete('/usr/session/:id',
+    requireAuth,
+    authLimiter,
+    deleteSessionController,
+  )
   return router;
 };

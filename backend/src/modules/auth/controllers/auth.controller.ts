@@ -29,6 +29,10 @@ import {
   updatePasswordService,
   updateEmailService,
   emailUpdateOtpVerifyService,
+  getMeService,
+  getSessionsService,
+  deleteAllSessionsService,
+  deleteSessionService,
 } from "../services/auth.service.js";
 import type { ErrorResponse, SuccessResponse } from "../../../types/response.js";
 import { COOKIE_NAMES } from "../../../utils/token.util.js";
@@ -401,3 +405,93 @@ export const emailUpdateOtpVerifyController = async (
     next(error);
   }
 };
+
+
+export const getMeController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const user = await getMeService(authReq.auth.userId);
+    const response: SuccessResponse = {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "User information retrieved successfully.",
+      data:user
+    };
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSessionsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const sessions = await getSessionsService(authReq.auth.userId);
+    const response: SuccessResponse = {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "User sessions retrieved successfully.",
+      data: sessions,
+    };
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteAllSessionsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    await deleteAllSessionsService(authReq.auth.userId);
+    const response: SuccessResponse = {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "All user sessions deleted successfully.",
+      data: null,
+    };
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteSessionController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const sessionId = req.params.id;
+    if(!sessionId){
+      throw new AppError(
+        "Session ID is required",
+        StatusCodes.BAD_REQUEST,
+        ErrorCodes.AUTH_INVALID_CREDENTIALS,
+        { isOperational: true },
+      );
+    };
+    await deleteSessionService(authReq.auth.userId, String(sessionId));
+    const response: SuccessResponse = {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "User session deleted successfully.",
+      data: null,
+    };
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    next(error);
+  }
+}
