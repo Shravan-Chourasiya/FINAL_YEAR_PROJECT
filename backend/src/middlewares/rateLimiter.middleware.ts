@@ -15,7 +15,9 @@ export function createRateLimiter(key: RateLimitKey) {
     standardHeaders: "draft-8",
     legacyHeaders: false,
     store: new RedisStore({
-      sendCommand: (...args: string[]) => redisClient.call(...args),
+      sendCommand: ((...args: [string, ...string[]]) => redisClient.call(...args)) as (
+        ...args: string[]
+      ) => Promise<any>,
       prefix: `rl:${key.toLowerCase()}:`,
     }),
     handler: (_req, res) => {
