@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, integer, boolean, pgEnum, jsonb, timestamp } from "drizzle-orm/pg-core";
-import { usersTable } from "./user.schema.js";
 import { dbNow } from "../../../utils/db.util.js";
+import { usersTable } from "../../auth/schemas/user.schema.js";
 
 export const interviewStatusEnum = pgEnum("interview_status", ["SCHEDULED", "COMPLETED", "CANCELLED", "INPROGRESS", "DRAFT"]);
 export const interviewCompanyStyleEnum = pgEnum("interview_company_style", ["MANGOS", "FAANG", "MAANG", "STARTUP", "CUSTOM"]);
