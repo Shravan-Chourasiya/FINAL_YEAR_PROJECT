@@ -1,7 +1,7 @@
 export interface StandardResponse {
   statusCode:number,
   message:string,
-  data:object|null 
+  data: unknown
 }
 export interface SuccessResponse extends StandardResponse{
   success:true
