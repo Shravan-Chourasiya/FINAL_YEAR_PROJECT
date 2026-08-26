@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, boolean, pgEnum, integer, jsonb, timestamp } fr
 import { dbNow } from "../../../utils/db.util.js";
 
 export const accountStatusEnum = pgEnum("account_status", ["active", "suspended", "disabled", "deleted"]);
+export const userRoleEnum = pgEnum("user_role", ["user", "admin", "moderator", "owner"]);
 export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "facebook", "github", "none"]);
 export const twoFATypeEnum = pgEnum("two_fa_type", ["none", "sms", "authenticator"]);
 export const twoFAStatusEnum = pgEnum("two_fa_status", ["enabled", "disabled"]);
@@ -13,6 +14,7 @@ export const usersTable = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   password: varchar("password", { length: 255 }).notNull(),
   username: varchar("username", { length: 30 }).notNull().unique(),
+  userrole: userRoleEnum("user_role").notNull().default("user"),
 
   // Account fields
   isVerified: boolean("is_verified").notNull().default(false),
