@@ -8,7 +8,11 @@ const envSchema = z.object({
   POSTGRES_URI: z.string().url(),
   REDIS_URI: z.string().url(),
   JWT_SECRET: z.string().min(64).max(512),
-  CORS_ORIGIN: z.string().url(),
+  CORS_ORIGIN: z
+    .string()
+    .default("http://localhost:3000")
+    .transform((val) => val.split(",").map((s) => s.trim()))
+    .pipe(z.array(z.string().url())),
   COOKIE_DOMAIN: z.string().optional(),
   API_VERSION: z.string(),
   GMAIL_USER_EMAIL: z.string().email(),

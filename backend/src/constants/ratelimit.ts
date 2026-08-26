@@ -36,8 +36,12 @@ export const RateLimits = {
 
   /** Interview creation and management */
   INTERVIEW: {
+    windowMs: 1 * 60 * 1000, // 1 min
+    limit: 1,
+  },
+  CREATE_INTERVIEW: {
     windowMs: 60 * 60 * 1000, // 1 hour
-    limit: 30,
+    limit: 10,
   },
 
   /** AI-powered endpoints — expensive, tightly limited */
