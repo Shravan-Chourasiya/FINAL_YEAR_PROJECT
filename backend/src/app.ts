@@ -17,6 +17,7 @@ import { csrfTokenMiddleware } from "./middlewares/csrf.middleware.js";
 import { sql } from "drizzle-orm";
 import { redisClient } from "./config/redis.init.js";
 import { readinessCheck } from "./utils/ready.js";
+import { createInterviewRouter } from "./routes/interview.routes.js";
 config();
 const app = express();
 
@@ -37,6 +38,8 @@ app.use(requestLogger);
 //****************************************** Route Registration ******************************************//
 const AuthRoutes: express.Router = createAuthRouter();
 app.use(`/${env.API_VERSION}/`, AuthRoutes);
+const InterviewRoutes: express.Router = createInterviewRouter();
+app.use(`/${env.API_VERSION}/`, InterviewRoutes);
 
 
 //****************************************** Health Check Endpoints ******************************************//
