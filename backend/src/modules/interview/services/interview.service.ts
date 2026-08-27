@@ -6,6 +6,17 @@ import { AppError } from "../../../utils/appError.js";
 import { ErrorCodes } from "../../../constants/errorCodes.js";
 import { StatusCodes } from "http-status-codes";
 
+// ── Repository helper (used by ownership middleware) ──────────────────────────
+
+export async function fetchInterviewById(id: string) {
+  const db = getPgDb();
+  const [interview] = await db
+    .select()
+    .from(interviewsTable)
+    .where(eq(interviewsTable.id, id));
+  return interview;
+}
+
 export async function createInterviewService(
   authreq: AuthenticatedRequest,
   interviewData: {

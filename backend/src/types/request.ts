@@ -14,4 +14,5 @@ export interface AuthenticatedRequest extends StandardRequest {
     accessToken: string;
     refreshToken: string;
   };
+  resource?: unknown;
 }
