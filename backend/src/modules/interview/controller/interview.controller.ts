@@ -2,7 +2,12 @@ import type { NextFunction, Request, Response } from "express";
 import type { AuthenticatedRequest } from "../../../types/request.js";
 import type { SuccessResponse } from "../../../types/response.js";
 import { StatusCodes } from "http-status-codes";
-import { createInterviewService, getAllInterviewsService, getInterviewByIdService, getInterviewMetricsService } from "../services/interview.service.js";
+import {
+  createInterviewService,
+  getAllInterviewsService,
+  getInterviewByIdService,
+  getInterviewMetricsService,
+} from "../services/interview.service.js";
 
 export const createInterviewController = async (
   req: Request,
