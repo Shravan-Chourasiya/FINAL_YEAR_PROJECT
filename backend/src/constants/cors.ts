@@ -9,10 +9,7 @@ type CorsOptions = {
   methods: string[];
   allowedHeaders: string[];
 };
-const allowedOrigins = (env.CORS_ORIGIN ?? "")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
+const allowedOrigins = env.CORS_ORIGIN;
 
 if (env.NODE_ENV === "production" && allowedOrigins.length === 0) {
   throw new Error(

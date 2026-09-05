@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { validateBody } from "../middlewares/zodValidator.middleware.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
+import { csrfTokenMiddleware } from "../middlewares/csrf.middleware.js";
 import { createRateLimiter } from "../middlewares/rateLimiter.middleware.js";
 import {
   registerSchema, verifyOtpSchema, loginSchema,
@@ -56,12 +57,14 @@ export const createAuthRouter = (): Router => {
 
   router.post("/usr/logout",
     requireAuth,
+    csrfTokenMiddleware,
     logoutController,
   );
 
   // ── Account Management ───────────────────────────────────────────────────────
   router.delete("/usr/account",
     requireAuth,
+    csrfTokenMiddleware,
     deleteAccountController,
   );
 
@@ -92,6 +95,8 @@ export const createAuthRouter = (): Router => {
 
   // ── Update Password ──────────────────────────────────────────────────────────
   router.post("/usr/update-password",
+    requireAuth,
+    csrfTokenMiddleware,
     passwordLimiter,
     validateBody(updatePasswordSchema),
     updatePasswordController,
@@ -100,12 +105,16 @@ export const createAuthRouter = (): Router => {
   // ── Update Email ──────────────────────────────────────────────────────────
   router.post(
     "/usr/update-email",
+    requireAuth,
+    csrfTokenMiddleware,
     passwordLimiter,
     validateBody(updateEmailSchema),
     updateEmailController,
   );
 
   router.post("/usr/update-email/verify",
+    requireAuth,
+    csrfTokenMiddleware,
     passwordLimiter,
     validateBody(updateEmailSchema),
     emailUpdateOtpVerifyController,
@@ -113,21 +122,25 @@ export const createAuthRouter = (): Router => {
 
   router.get('/usr/me',
     requireAuth,
+    csrfTokenMiddleware,
     authLimiter,
     getMeController,
   )
   router.get('/usr/sessions',
     requireAuth,
+    csrfTokenMiddleware,
     authLimiter,
     getSessionsController,
   )
   router.delete('/usr/sessions',
     requireAuth,
+    csrfTokenMiddleware,
     authLimiter,
     deleteAllSessionsController,
   )
   router.delete('/usr/session/:id',
     requireAuth,
+    csrfTokenMiddleware,
     authLimiter,
     deleteSessionController,
   )
