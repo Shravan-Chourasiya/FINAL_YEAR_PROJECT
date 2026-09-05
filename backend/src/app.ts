@@ -31,7 +31,6 @@ app.use(compression());
 app.use(express.json({ limit: "184kb" }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true, limit: "184kb" }));
-app.use(csrfTokenMiddleware);
 app.use(requestIdMiddleware);
 app.use(requestLogger);
 
