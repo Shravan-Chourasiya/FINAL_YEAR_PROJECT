@@ -65,14 +65,26 @@ function mockDb({ userResult = [activeUser], sessionResult = [] }: DbMockOptions
 
   const select = vi.fn().mockImplementation(() => {
     selectCallCount++;
-    const result = selectCallCount === 1 ? userResult : sessionResult;
-    return {
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(result),
+    const isFirstSelect = selectCallCount === 1;
+    const result = isFirstSelect ? userResult : sessionResult;
+
+    if (isFirstSelect) {
+      // User lookup: .select().from().where().limit()
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue(result),
+          }),
         }),
-      }),
-    };
+      };
+    } else {
+      // Sessions lookup: .select().from().where() — awaited directly, no .limit()
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(result),
+        }),
+      };
+    }
   });
 
   const update = vi.fn().mockReturnValue(updateChain);

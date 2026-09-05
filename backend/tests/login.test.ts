@@ -16,8 +16,12 @@ vi.mock("../src/utils/token.util.js", () => ({
   blacklistToken: vi.fn().mockResolvedValue(undefined),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
   verifyToken: vi.fn(),
-  COOKIE_NAMES: { ACCESS: "access_token", REFRESH: "refresh_token", DEVICE_ID: "device_id" },
+  COOKIE_NAMES: { ACCESS: "access_token", REFRESH: "refresh_token", DEVICE_ID: "device_id", CSRF: "csrf_token" },
   COOKIE_OPTIONS: {},
+}));
+
+vi.mock("../src/utils/csrf.js", () => ({
+  generateCsrfToken: vi.fn().mockReturnValue("mock-csrf-token"),
 }));
 
 vi.mock("bcrypt", () => ({
@@ -27,9 +31,15 @@ vi.mock("bcrypt", () => ({
   },
 }));
 
+vi.mock("../src/modules/auth/services/auth.service.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/modules/auth/services/auth.service.js")>();
+  return { ...actual, loginService: vi.fn() };
+});
+
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
 import { loginService } from "../src/modules/auth/services/auth.service.js";
+import { loginController } from "../src/modules/auth/controllers/auth.controller.js";
 import { getPgDb } from "../src/db/postgres.init.js";
 import bcrypt from "bcrypt";
 
@@ -86,10 +96,24 @@ function mockDb({ userResult = [activeUser], sessionResult = [], insertResult = 
 }
 
 // ── loginService ──────────────────────────────────────────────────────────────
+// NOTE: loginService is mocked at the module level above (vi.mock with importOriginal).
+// These tests call the real implementation by temporarily restoring it via mockImplementation.
+// We test the real service logic by using the DB mock directly.
 
-describe("loginService", () => {
+describe("loginService (real implementation via DB mock)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset loginService to the real implementation (it was spread from importOriginal)
+    // The vi.mock above uses importOriginal and only overrides loginService with vi.fn()
+    // We restore it here so service tests use the real code path
+    vi.mocked(loginService).mockImplementation(
+      async (...args: Parameters<typeof loginService>) => {
+        const { loginService: real } = await vi.importActual<
+          typeof import("../src/modules/auth/services/auth.service.js")
+        >("../src/modules/auth/services/auth.service.js");
+        return real(...args);
+      }
+    );
   });
 
   it("returns tokens and deviceId on successful login", async () => {
@@ -186,14 +210,6 @@ describe("loginService", () => {
 
 // ── loginController ───────────────────────────────────────────────────────────
 
-vi.mock("../src/modules/auth/services/auth.service.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/modules/auth/services/auth.service.js")>();
-  return { ...actual, loginService: vi.fn() };
-});
-
-import { loginController } from "../src/modules/auth/controllers/auth.controller.js";
-import { loginService as loginServiceMock } from "../src/modules/auth/services/auth.service.js";
-
 function mockReqRes(overrides: { cookies?: Record<string, string>; body?: object; headers?: Record<string, string> } = {}) {
   const req = {
     body: overrides.body ?? loginInput,
@@ -216,10 +232,11 @@ describe("loginController", () => {
     vi.clearAllMocks();
   });
 
-  it("responds 200 and sets cookies on successful login", async () => {
-    vi.mocked(loginServiceMock).mockResolvedValue({
+  it("responds 200 and sets 4 cookies (access, refresh, csrf, device_id) on successful login", async () => {
+    vi.mocked(loginService).mockResolvedValue({
       accessToken: "mock-access-token",
       refreshToken: "mock-refresh-token",
+      csrfToken: "mock-csrf-token",
       deviceId: "device-uuid",
       sessionId: "session-uuid",
     });
@@ -229,14 +246,16 @@ describe("loginController", () => {
 
     expect(res.status).toHaveBeenCalledWith(StatusCodes.OK);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true, message: "Login successful." }));
-    expect(res.cookie).toHaveBeenCalledTimes(3);
+    // setAuthCookies sets: access_token, refresh_token, csrf_token, device_id = 4 cookies
+    expect(res.cookie).toHaveBeenCalledTimes(4);
     expect(next).not.toHaveBeenCalled();
   });
 
   it("passes existing device_id cookie to loginService", async () => {
-    vi.mocked(loginServiceMock).mockResolvedValue({
+    vi.mocked(loginService).mockResolvedValue({
       accessToken: "mock-access-token",
       refreshToken: "mock-refresh-token",
+      csrfToken: "mock-csrf-token",
       deviceId: "existing-device-id",
       sessionId: "session-uuid",
     });
@@ -244,14 +263,14 @@ describe("loginController", () => {
     const { req, res, next } = mockReqRes({ cookies: { device_id: "existing-device-id" } });
     await loginController(req as never, res as never, next);
 
-    expect(loginServiceMock).toHaveBeenCalledWith(
+    expect(loginService).toHaveBeenCalledWith(
       expect.anything(), expect.any(String), expect.any(String), "existing-device-id"
     );
   });
 
   it("calls next with error when loginService throws", async () => {
     const error = new AppError("Invalid email or password", StatusCodes.UNAUTHORIZED, ErrorCodes.AUTH_INVALID_CREDENTIALS, { isOperational: true });
-    vi.mocked(loginServiceMock).mockRejectedValue(error);
+    vi.mocked(loginService).mockRejectedValue(error);
 
     const { req, res, next } = mockReqRes();
     await loginController(req as never, res as never, next);

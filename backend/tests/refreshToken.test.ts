@@ -15,8 +15,12 @@ vi.mock("../src/utils/token.util.js", () => ({
   blacklistToken: vi.fn().mockResolvedValue(undefined),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
   verifyToken: vi.fn(),
-  COOKIE_NAMES: { ACCESS: "access_token", REFRESH: "refresh_token", DEVICE_ID: "device_id" },
+  COOKIE_NAMES: { ACCESS: "access_token", REFRESH: "refresh_token", DEVICE_ID: "device_id", CSRF: "csrf_token" },
   COOKIE_OPTIONS: {},
+}));
+
+vi.mock("../src/utils/csrf.js", () => ({
+  generateCsrfToken: vi.fn().mockReturnValue("new-csrf-token"),
 }));
 
 vi.mock("bcrypt", () => ({
@@ -72,14 +76,19 @@ describe("refreshTokenService", () => {
     vi.clearAllMocks();
   });
 
-  it("returns new access and refresh tokens on success", async () => {
+  it("returns new access, refresh, and csrf tokens on success", async () => {
     vi.mocked(isTokenBlacklisted).mockResolvedValue(false);
     vi.mocked(verifyToken).mockReturnValue(validPayload);
     mockDb();
 
     const result = await refreshTokenService("valid-refresh-token");
 
-    expect(result).toEqual({ accessToken: "new-access-token", refreshToken: "new-refresh-token" });
+    // Service returns { accessToken, refreshToken, csrfToken }
+    expect(result).toMatchObject({
+      accessToken: "new-access-token",
+      refreshToken: "new-refresh-token",
+      csrfToken: expect.any(String),
+    });
   });
 
   it("blacklists old tokens and updates session on success", async () => {
@@ -91,7 +100,10 @@ describe("refreshTokenService", () => {
 
     expect(blacklistToken).toHaveBeenCalledWith("valid-refresh-token");
     expect(blacklistToken).toHaveBeenCalledWith("old-access-token");
-    expect(updateChain.set).toHaveBeenCalledWith({ accessToken: "new-access-token", refreshToken: "new-refresh-token" });
+    // Session update includes csrfToken too
+    expect(updateChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: "new-access-token", refreshToken: "new-refresh-token" })
+    );
   });
 
   it("signs new tokens with correct userId, sessionId, tokenFamily", async () => {
