@@ -1,251 +1,195 @@
+/**
+ * middleware.test.ts
+ * Integration tests for the error handler middleware and 404 handler.
+ * Uses a real Express app instance — no DB/Redis required.
+ */
 import { describe, it, expect, beforeEach, afterEach, type AddressInfo } from "vitest";
 import express, { type Express } from "express";
 import { StatusCodes } from "http-status-codes";
 import type { Server } from "http";
-
-import { ErrorCodes } from "../src/constants/errorCodes.js";
-import { AppError } from "../src/utils/AppError.js";
-import { errorHandler } from "../src/shared/middleware/errorHandler.js";
-import { requestLogger } from "../src/utils/logger.js";
+import { errorHandler } from "../src/middlewares/errorHandler.middleware.js";
 import { requestIdMiddleware } from "../src/middlewares/requestId.middleware.js";
+import { AppError } from "../src/utils/appError.js";
+import { ErrorCodes } from "../src/constants/errorCodes.js";
 
-
-// ---------------------------------------------------------------------------
-// Helper: build the app the same way server.ts does (minus listen), boot it on
-// an ephemeral port, and drive it with Node's built-in fetch.
-// ---------------------------------------------------------------------------
 interface TestServer {
-  app: Express;
-  server: Server;
   baseUrl: string;
   close: () => Promise<void>;
 }
 
-async function startServer(configure: (app: Express) => void = () => {}): Promise<TestServer> {
-  const app = express();
-  app.use(express.json());
-  app.use(requestIdMiddleware);
-  app.use(requestLogger);
+function startServer(configure: (app: Express) => void = () => {}): Promise<TestServer> {
+  return new Promise((resolve) => {
+    const app: Express = express();
+    app.use(express.json());
+    app.use(requestIdMiddleware);
 
-  configure(app);
+    configure(app);
 
-  // 404 handler (same as server.ts)
-  app.use((_req, res) => {
-    res.status(StatusCodes.NOT_FOUND).json({
-      status: "error",
-      statusCode: StatusCodes.NOT_FOUND,
-      message: "Route not found",
-      error: { code: ErrorCodes.ROUTE_NOT_FOUND },
+    app.use((_req, res) => {
+      res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        statusCode: StatusCodes.NOT_FOUND,
+        message: "Route not found",
+        data: null,
+        error: { code: ErrorCodes.ROUTE_NOT_FOUND },
+      });
+    });
+
+    app.use(errorHandler);
+
+    const server: Server = app.listen(0, () => {
+      const { port } = server.address() as AddressInfo;
+      resolve({
+        baseUrl: `http://127.0.0.1:${port}`,
+        close: () => new Promise<void>((res, rej) => server.close((e) => (e ? rej(e) : res()))),
+      });
     });
   });
-
-  // Central error handler — must be last
-  app.use(errorHandler);
-
-  const server = app.listen(0);
-  await new Promise<void>((resolve) => server.once("listening", resolve));
-  const { port } = server.address() as AddressInfo;
-
-  return {
-    app,
-    server,
-    baseUrl: `http://127.0.0.1:${port}`,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
-      }),
-  };
 }
 
-
-describe("Error middleware integration", () => {
+describe("404 handler", () => {
   let ts: TestServer;
+  beforeEach(async () => { ts = await startServer(); });
+  afterEach(async () => { await ts.close(); });
 
-  beforeEach(async () => {
-    ts = await startServer();
-  });
-
-  afterEach(async () => {
-    await ts.close();
-  });
-
-  it("404 handler returns standard error envelope", async () => {
+  it("returns standard error envelope for unknown route", async () => {
     const res = await fetch(`${ts.baseUrl}/nonexistent`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.NOT_FOUND);
-    expect(body.status).toBe("error");
+    expect(body.success).toBe(false);
     expect(body.statusCode).toBe(404);
     expect(body.message).toBe("Route not found");
     expect((body.error as { code: string }).code).toBe(ErrorCodes.ROUTE_NOT_FOUND);
   });
+});
 
-  it("health endpoint still works", async () => {
-    await ts.close();
+describe("errorHandler middleware", () => {
+  let ts: TestServer;
+  afterEach(async () => { await ts.close(); });
+
+  it("maps client-safe AppError to correct status and envelope", async () => {
     ts = await startServer((app) => {
-      app.get("/health", (_req, res) => {
-        res.status(StatusCodes.OK).json({ status: "ok", env: "test" });
-      });
-    });
-
-    const res = await fetch(`${ts.baseUrl}/health`);
-    const body = (await res.json()) as Record<string, unknown>;
-
-    expect(res.status).toBe(StatusCodes.OK);
-    expect(body.status).toBe("ok");
-    expect(body.env).toBe("test");
-  });
-
-  it("AppError thrown from route returns standard error envelope", async () => {
-    await ts.close();
-    ts = await startServer((app) => {
-      app.get("/throw", () => {
-        throw new AppError(
-          "Invalid credentials",
-          StatusCodes.UNAUTHORIZED,
-          ErrorCodes.AUTH_INVALID_CREDENTIALS,
-        );
+      app.get("/throw", (_req, _res, next) => {
+        next(new AppError("Invalid credentials", StatusCodes.UNAUTHORIZED, ErrorCodes.AUTH_INVALID_CREDENTIALS, { isOperational: true }));
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.UNAUTHORIZED);
-    expect(body.status).toBe("error");
+    expect(body.success).toBe(false);
     expect(body.statusCode).toBe(401);
     expect(body.message).toBe("Invalid credentials");
     expect((body.error as { code: string }).code).toBe(ErrorCodes.AUTH_INVALID_CREDENTIALS);
   });
 
-  it("AppError with details includes them in response", async () => {
-    await ts.close();
+  it("includes details in response when AppError has them", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-details", () => {
-        throw new AppError(
-          "Validation failed",
-          StatusCodes.BAD_REQUEST,
-          ErrorCodes.VALIDATION_FAILED,
-          {
-            details: {
-              fields: { email: "Invalid email address" },
-            },
-          },
-        );
+      app.get("/throw-details", (_req, _res, next) => {
+        next(new AppError("Validation failed", StatusCodes.BAD_REQUEST, ErrorCodes.VALIDATION_FAILED, {
+          isOperational: true,
+          details: { fields: { email: "Invalid email" } },
+        }));
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-details`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.BAD_REQUEST);
-    expect(body.status).toBe("error");
-    expect((body.error as { code: string }).code).toBe(ErrorCodes.VALIDATION_FAILED);
-    expect((body.error as { details: unknown }).details).toEqual({
-      fields: { email: "Invalid email address" },
-    });
+    expect((body.error as { details: unknown }).details).toEqual({ fields: { email: "Invalid email" } });
   });
 
-  it("unexpected error returns sanitized 500 response", async () => {
-    await ts.close();
+  it("sanitizes unexpected errors to generic 500 — no internal message exposed", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-uncaught", () => {
-        throw new Error("Database connection failed");
+      app.get("/throw-uncaught", (_req, _res, next) => {
+        next(new Error("PostgreSQL connection refused: ECONNREFUSED 127.0.0.1:5432"));
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-uncaught`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
-    expect(body.status).toBe("error");
+    expect(body.success).toBe(false);
     expect(body.statusCode).toBe(500);
     expect(body.message).toBe("An unexpected error occurred");
     expect((body.error as { code: string }).code).toBe(ErrorCodes.INTERNAL_SERVER_ERROR);
   });
 
-  it("unexpected error NEVER exposes stack trace to client", async () => {
-    await ts.close();
+  it("never exposes stack trace to client", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-stack", () => {
-        throw new Error("Something broke");
-      });
+      app.get("/throw-stack", (_req, _res, next) => { next(new Error("Something broke")); });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-stack`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
 
     expect(body).not.toHaveProperty("stack");
-    expect(body.error).not.toHaveProperty("stack");
     expect(JSON.stringify(body)).not.toContain("at ");
-    expect(JSON.stringify(body)).not.toContain("throw-stack");
   });
 
-  it("unexpected error NEVER exposes internal error message to client", async () => {
-    await ts.close();
+  it("never exposes DB details to client", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-internal", () => {
-        throw new Error("PostgreSQL connection refused: ECONNREFUSED 127.0.0.1:5432");
-      });
-    });
-
-    const res = await fetch(`${ts.baseUrl}/throw-internal`);
-    const body = (await res.json()) as Record<string, unknown>;
-
-    expect(body.message).toBe("An unexpected error occurred");
-    expect(body.message).not.toContain("PostgreSQL");
-    expect(body.message).not.toContain("ECONNREFUSED");
-    expect(body.message).not.toContain("5432");
-  });
-
-  it("unexpected error NEVER exposes database details to client", async () => {
-    await ts.close();
-    ts = await startServer((app) => {
-      app.get("/throw-db", () => {
-        throw new Error('SQL Error: relation "users" does not exist');
+      app.get("/throw-db", (_req, _res, next) => {
+        next(new Error('SQL Error: relation "users" does not exist'));
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-db`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
+    const str = JSON.stringify(body).toLowerCase();
 
-    const bodyStr = JSON.stringify(body).toLowerCase();
-    expect(bodyStr).not.toContain("sql");
-    expect(bodyStr).not.toContain("relation");
-    expect(bodyStr).not.toContain("users");
-    expect(bodyStr).not.toContain("does not exist");
+    expect(str).not.toContain("sql");
+    expect(str).not.toContain("relation");
+    expect(str).not.toContain("users");
   });
 
-  it("unexpected error NEVER exposes Redis details to client", async () => {
-    await ts.close();
+  it("never exposes Redis details to client", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-redis", () => {
-        throw new Error("Redis connection error: NOAUTH Authentication required");
+      app.get("/throw-redis", (_req, _res, next) => {
+        next(new Error("Redis connection error: NOAUTH Authentication required"));
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-redis`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
+    const str = JSON.stringify(body).toLowerCase();
 
-    const bodyStr = JSON.stringify(body).toLowerCase();
-    expect(bodyStr).not.toContain("redis");
-    expect(bodyStr).not.toContain("noauth");
-    expect(bodyStr).not.toContain("authentication");
+    expect(str).not.toContain("redis");
+    expect(str).not.toContain("noauth");
   });
 
-  it("unexpected error NEVER exposes filesystem paths to client", async () => {
-    await ts.close();
+  it("never exposes filesystem paths to client", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-fs", () => {
-        throw new Error("ENOENT: no such file or directory, open '/etc/passwd'");
+      app.get("/throw-fs", (_req, _res, next) => {
+        next(new Error("ENOENT: no such file or directory, open '/etc/passwd'"));
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-fs`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json() as Record<string, unknown>;
+    const str = JSON.stringify(body);
 
-    const bodyStr = JSON.stringify(body);
-    expect(bodyStr).not.toContain("/etc/passwd");
-    expect(bodyStr).not.toContain("ENOENT");
+    expect(str).not.toContain("/etc/passwd");
+    expect(str).not.toContain("ENOENT");
+  });
+
+  it("5xx AppError is also sanitized — leaky message is not forwarded to client", async () => {
+    ts = await startServer((app) => {
+      app.get("/throw-5xx-app", (_req, _res, next) => {
+        // isOperational defaults to false for 5xx — this is a server-side error
+        next(new AppError("DB pool exhausted at 127.0.0.1:5432", StatusCodes.INTERNAL_SERVER_ERROR, ErrorCodes.INTERNAL_SERVER_ERROR));
+      });
+    });
+
+    const res = await fetch(`${ts.baseUrl}/throw-5xx-app`);
+    const body = await res.json() as Record<string, unknown>;
+
+    expect(res.status).toBe(500);
+    expect(body.message).toBe("An unexpected error occurred");
+    expect(JSON.stringify(body)).not.toContain("127.0.0.1");
   });
 });

@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Mock Redis client ─────────────────────────────────────────────────────────
+// vi.mock is hoisted to top of file, so redisMock must be defined via vi.hoisted()
 
-const redisMock = {
+const redisMock = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
   setex: vi.fn().mockResolvedValue("OK"),
   del: vi.fn().mockResolvedValue(1),
   exists: vi.fn(),
-};
+}));
 
 vi.mock("../src/config/redis.init.js", () => ({
   redisClient: redisMock,
@@ -138,8 +139,7 @@ describe("otpService.verifyOTP", () => {
   });
 
   it("decrements attemptsLeft and updates Redis on wrong OTP", async () => {
-    // Use a real bcrypt hash of "999999" to simulate a stored hash
-    const bcrypt = await import("bcrypt");
+    const bcrypt = await vi.importActual<typeof import("bcrypt")>("bcrypt");
     const hash = await bcrypt.hash("999999", 1);
     redisMock.get.mockResolvedValue(makePendingOTP({ otpHash: hash, attemptsLeft: 5, failedAttempts: 0 }));
 
@@ -151,7 +151,7 @@ describe("otpService.verifyOTP", () => {
   });
 
   it("deletes key on successful verification", async () => {
-    const bcrypt = await import("bcrypt");
+    const bcrypt = await vi.importActual<typeof import("bcrypt")>("bcrypt");
     const hash = await bcrypt.hash("123456", 1);
     redisMock.get.mockResolvedValue(makePendingOTP({ otpHash: hash, newValue: '{"username":"john"}' }));
 
@@ -162,7 +162,7 @@ describe("otpService.verifyOTP", () => {
   });
 
   it("returns newValue on successful verification", async () => {
-    const bcrypt = await import("bcrypt");
+    const bcrypt = await vi.importActual<typeof import("bcrypt")>("bcrypt");
     const hash = await bcrypt.hash("123456", 1);
     redisMock.get.mockResolvedValue(makePendingOTP({ otpHash: hash, newValue: '{"username":"john"}' }));
 
