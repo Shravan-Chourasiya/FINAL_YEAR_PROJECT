@@ -24,3 +24,5 @@ backend/docs/temp/postgres-init.md
 *.json
 backend/docs/review.txt
 backend/Untitled-1.txt
+backend/TODOS.txt
+backend/socketTodos.txt
