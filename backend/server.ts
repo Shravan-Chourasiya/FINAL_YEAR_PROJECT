@@ -3,8 +3,13 @@ import { env } from "./src/config/env.js";
 import { logger } from "./src/utils/logger.js";
 import app from "./src/app.js";
 import { testPgConnection } from "./src/db/postgres.init.js";
+import { attachSocketServer } from "./src/websocket/socket.server.js";
+import { createServer } from "http";
 
-const server = app.listen(env.PORT, () => {
+const httpServer = createServer(app);
+attachSocketServer(httpServer);
+
+const server = httpServer.listen(env.PORT, () => {
   logger.info(
     {
       port: env.PORT,
