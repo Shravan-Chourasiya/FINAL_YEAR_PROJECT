@@ -18,6 +18,7 @@ import { sql } from "drizzle-orm";
 import { redisClient } from "./config/redis.init.js";
 import { readinessCheck } from "./utils/ready.js";
 import { createInterviewRouter } from "./routes/interview.routes.js";
+import { startAbandonStaleInterviewsJob } from "./jobs/abandonStaleInterviews.job.js";
 config();
 const app = express();
 
@@ -39,6 +40,8 @@ const AuthRoutes: express.Router = createAuthRouter();
 app.use(`/${env.API_VERSION}/`, AuthRoutes);
 const InterviewRoutes: express.Router = createInterviewRouter();
 app.use(`/${env.API_VERSION}/`, InterviewRoutes);
+
+startAbandonStaleInterviewsJob();
 
 
 //****************************************** Health Check Endpoints ******************************************//
