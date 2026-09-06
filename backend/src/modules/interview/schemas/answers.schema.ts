@@ -1,9 +1,10 @@
-import { pgTable, uuid, varchar, boolean, pgEnum, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, pgEnum, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { dbNow } from "../../../utils/db.util.js";
 import { interviewsTable } from "./interview.schema.js";
 import { interviewQuestionsTable } from "./question.schema.js";
 
 export const answerTypeEnum = pgEnum("answer_type", ["TEXT", "AUDIO", "VIDEO"]);
+export const answerStateEnum = pgEnum("answer_state", ["RECEIVED", "PERSISTED", "EVALUATED"]);
 
 export const interviewAnswersTable = pgTable("interview_answers", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -11,7 +12,7 @@ export const interviewAnswersTable = pgTable("interview_answers", {
   questionId: uuid("question_id").notNull().references(() => interviewQuestionsTable.id, { onDelete: "cascade" }),
   answerData: varchar("answer_data", { length: 5000 }).notNull(),
   answerType: answerTypeEnum("answer_type").notNull(),
-  isEvaluated: boolean("is_evaluated").notNull().default(false),
+  answerState: answerStateEnum("answer_state").notNull().default("PERSISTED"),
   evaluationData: jsonb("evaluation_data").$type<{
     score: number;
     correctness: number;
