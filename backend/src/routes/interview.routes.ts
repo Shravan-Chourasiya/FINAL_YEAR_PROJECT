@@ -4,12 +4,21 @@ import { requireAuth } from "../middlewares/auth.middleware.js";
 import { csrfTokenMiddleware } from "../middlewares/csrf.middleware.js";
 import { requireOwnership } from "../middlewares/ownership.middleware.js";
 import { validateBody } from "../middlewares/zodValidator.middleware.js";
+import { requireInterviewState } from "../modules/interview/middlewares/interviewState.middleware.js";
 import { createInterviewSchema } from "../modules/interview/zodschemas/interview.zschema.js";
 import {
   createInterviewController,
   getAllInterviewsController,
   getInterviewByIdController,
   getInterviewMetricsController,
+  getInterviewHistoryController,
+  getResumableInterviewsController,
+  startInterviewController,
+  pauseInterviewController,
+  resumeInterviewController,
+  cancelInterviewController,
+  endInterviewController,
+  submitAnswerController,
 } from "../modules/interview/controller/interview.controller.js";
 import { fetchInterviewById } from "../modules/interview/services/interview.service.js";
 
@@ -35,6 +44,8 @@ export function createInterviewRouter() {
 
   router.get("/interviews", requireAuth, csrfTokenMiddleware, InterviewLimiter, getAllInterviewsController);
 
+  router.get("/interviews/resumable", requireAuth, csrfTokenMiddleware, InterviewLimiter, getResumableInterviewsController);
+
   router.get(
     "/interviews/:id",
     requireAuth,
@@ -45,12 +56,76 @@ export function createInterviewRouter() {
   );
 
   router.get(
+    "/interviews/:id/history",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    getInterviewHistoryController,
+  );
+
+  router.get(
     "/interviews/:id/metrics",
     requireAuth,
     csrfTokenMiddleware,
     InterviewLimiter,
     requireInterviewOwnership,
     getInterviewMetricsController,
+  );
+
+  router.post(
+    "/interviews/:id/start",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    requireInterviewState("READY", "SCHEDULED"),
+    startInterviewController,
+  );
+
+  router.post(
+    "/interviews/:id/pause",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    pauseInterviewController,
+  );
+
+  router.post(
+    "/interviews/:id/resume",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    resumeInterviewController,
+  );
+
+  router.post(
+    "/interviews/:id/cancel",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    cancelInterviewController,
+  );
+
+  router.post(
+    "/interviews/:id/end",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    endInterviewController,
+  );
+
+  router.post(
+    "/interviews/:id/questions/:questionId/answer",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    submitAnswerController,
   );
 
   return router;
