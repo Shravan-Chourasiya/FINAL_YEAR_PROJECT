@@ -14,4 +14,10 @@ export const TARGET_COMPANIES=[
     "Deloitte",
     "Adobe",
     "Anthropic"
-]
+];
+
+// Abandonment criteria (finalised criteria TBD — using 90 min inactivity for now)
+export const ABANDONMENT_THRESHOLD_MS = 90 * 60 * 1000; // 90 minutes
+
+// Per-question timeout — 5 minutes, on expiry question is marked TIMED_OUT and scored 0
+export const QUESTION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
