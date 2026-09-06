@@ -2,7 +2,7 @@ import { pgTable, uuid, varchar, integer, boolean, pgEnum, jsonb, timestamp } fr
 import { dbNow } from "../../../utils/db.util.js";
 import { usersTable } from "../../auth/schemas/user.schema.js";
 
-export const interviewStatusEnum = pgEnum("interview_status", ["SCHEDULED", "COMPLETED", "CANCELLED", "INPROGRESS", "DRAFT"]);
+export const interviewStatusEnum = pgEnum("interview_status", ["SCHEDULED", "COMPLETED", "CANCELLED", "INPROGRESS", "READY","EXPIRED"]);
 export const interviewCompanyStyleEnum = pgEnum("interview_company_style", ["MANGOS", "FAANG", "MAANG", "STARTUP", "CUSTOM"]);
 export const interviewTypeEnum = pgEnum("interview_type", ["BEHAVIORAL", "TECHNICAL", "MIXED"]);
 export const interviewVerdictEnum = pgEnum("interview_verdict", ["PASS", "FAIL", "INCONCLUSIVE"]);
@@ -24,7 +24,7 @@ export const interviewsTable = pgTable("interviews", {
   interviewDuration: integer("interview_duration").notNull(),
 
   // Status fields
-  interviewStatus: interviewStatusEnum("interview_status").notNull().default("DRAFT"),
+  interviewStatus: interviewStatusEnum("interview_status").notNull().default("READY"),
   isInterviewScheduled: boolean("is_interview_scheduled").notNull().default(false),
   interviewScheduledDate: timestamp("interview_scheduled_date", { withTimezone: true }),
 
