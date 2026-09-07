@@ -29,7 +29,7 @@ export const COOKIE_NAMES = {
 
 // ── Cookie Max Ages (ms) ──────────────────────────────────────────────────────
 export const COOKIE_MAX_AGE = {
-  ACCESS: 15 * 60 * 1000,           // 15 minutes
+  ACCESS: 15 * 60 * 1000, // 15 minutes
   REFRESH: 30 * 24 * 60 * 60 * 1000, // 30 days
   DEVICE_ID: 30 * 24 * 60 * 60 * 1000, // 30 days
   CSRF: 30 * 24 * 60 * 60 * 1000, // 30 days

@@ -1,19 +1,19 @@
-export const TARGET_COMPANIES=[
-    "Google",
-    "Microsoft",
-    "Amazon",
-    "Meta",
-    "Apple",
-    "Netflix",
-    "OpenAI",
-    "Nvidia",
-    "TCS",
-    "Infosys",
-    "JPMorgan",
-    "Wipro",
-    "Deloitte",
-    "Adobe",
-    "Anthropic"
+export const TARGET_COMPANIES = [
+  "Google",
+  "Microsoft",
+  "Amazon",
+  "Meta",
+  "Apple",
+  "Netflix",
+  "OpenAI",
+  "Nvidia",
+  "TCS",
+  "Infosys",
+  "JPMorgan",
+  "Wipro",
+  "Deloitte",
+  "Adobe",
+  "Anthropic",
 ];
 
 // Abandonment criteria (finalised criteria TBD — using 90 min inactivity for now)

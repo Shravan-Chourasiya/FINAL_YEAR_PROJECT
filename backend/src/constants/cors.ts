@@ -1,6 +1,6 @@
 import { env } from "../config/env.js";
 
-type CorsOptions = {
+interface CorsOptions {
   origin: (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void,
@@ -8,7 +8,7 @@ type CorsOptions = {
   credentials: boolean;
   methods: string[];
   allowedHeaders: string[];
-};
+}
 const allowedOrigins = env.CORS_ORIGIN;
 
 if (env.NODE_ENV === "production" && allowedOrigins.length === 0) {

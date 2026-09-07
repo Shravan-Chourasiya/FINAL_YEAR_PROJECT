@@ -42,6 +42,12 @@ export const ErrorCodes = {
   /** Interview session could not be found. */
   INTERVIEW_NOT_FOUND: "INTERVIEW_NOT_FOUND",
 
+  /** Answer rejected — not for the current active question or already answered. */
+  ANSWER_REJECTED: "ANSWER_REJECTED",
+
+  /** Next question requested but current question is not yet completed. */
+  QUESTION_NOT_COMPLETED: "QUESTION_NOT_COMPLETED",
+
   /** Unexpected error; message is intentionally generic. */
   INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
 } as const;
