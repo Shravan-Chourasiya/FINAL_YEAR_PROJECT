@@ -17,7 +17,7 @@ export function requireOwnership<T>(
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
       const authReq = req as AuthenticatedRequest;
-      const { id } = req.params;
+      const id = req.params.id as string | undefined;
 
       if (!id) {
         throw new AppError(

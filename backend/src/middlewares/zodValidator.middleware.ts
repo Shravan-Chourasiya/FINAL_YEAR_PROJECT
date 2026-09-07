@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import * as z from "zod";
+import type * as z from "zod";
 import { StatusCodes } from "http-status-codes";
 import { AppError } from "../utils/appError.js";
 import { ErrorCodes } from "../constants/errorCodes.js";
@@ -23,8 +23,8 @@ export function validateBody<T extends z.ZodTypeAny>(schema: T) {
           "Zod schema validation failed on request body",
           StatusCodes.UNPROCESSABLE_ENTITY,
           ErrorCodes.VALIDATION_FAILED,
-          { isOperational: true, details: { source: "zod", fields } }
-        )
+          { isOperational: true, details: { source: "zod", fields } },
+        ),
       );
       return;
     }
