@@ -4,7 +4,6 @@ import type { Request, Response } from "express";
 
 import { env } from "../config/env.js";
 
-
 /** Express Request augmented with SynthView-specific context fields. */
 type SynthViewRequest = Request & {
   /** Unique request identifier. */
@@ -37,7 +36,6 @@ function getRoutePath(req: Request): string | undefined {
   const route = (req as { route?: { path?: string } }).route;
   return route?.path;
 }
-
 
 const options: LoggerOptions = {
   level: env.LOG_LEVEL,
@@ -83,9 +81,7 @@ const options: LoggerOptions = {
   },
 };
 
-
 export const logger = pino(options);
-
 
 /**
  * Express middleware that adds structured request logging.

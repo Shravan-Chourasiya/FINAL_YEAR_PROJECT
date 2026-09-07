@@ -2,7 +2,6 @@ import type { Server } from "node:http";
 import { logger } from "./logger.js";
 import { getPgPool } from "../db/postgres.init.js";
 
-
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 let isShuttingDown = false;
@@ -36,7 +35,6 @@ export async function gracefulShutdown(server: Server, signal: NodeJS.Signals): 
   forceShutdownTimer.unref();
 
   try {
-  
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
         if (error) {
@@ -56,7 +54,6 @@ export async function gracefulShutdown(server: Server, signal: NodeJS.Signals): 
     // await disconnectRedis();
     // logger.info("Redis connection closed");
 
-  
     clearTimeout(forceShutdownTimer);
 
     logger.info("Graceful shutdown completed");

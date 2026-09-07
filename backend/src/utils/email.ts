@@ -3,7 +3,7 @@ import { AppError } from "./appError.js";
 import { ErrorCodes } from "../constants/errorCodes.js";
 import { logger } from "./logger.js";
 
-export const getRandomOtp = (length: number = 6): string => {
+export const getRandomOtp = (length = 6): string => {
   const max = 10;
   const limit = 256 - (256 % max);
   const result: string[] = [];
@@ -36,6 +36,6 @@ export const handlerNodeMailerError = (error: unknown): never => {
     "Failed to send email. Please try again later.",
     StatusCodes.INTERNAL_SERVER_ERROR,
     ErrorCodes.INTERNAL_SERVER_ERROR,
-    { isOperational: true }
+    { isOperational: true },
   );
 };

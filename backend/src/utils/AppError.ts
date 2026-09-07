@@ -1,6 +1,5 @@
 import { type ErrorCode } from "../constants/errorCodes.js";
 
-
 interface AppErrorOptions {
   /** Additional structured context (e.g. validation field errors). */
   details?: unknown;
