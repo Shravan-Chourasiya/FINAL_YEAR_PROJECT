@@ -14,8 +14,6 @@ const redisConfig = {
   maxRetriesPerRequest: 3,
 };
 
-
-
 const redisClient = new Redis(redisConfig);
 
 redisClient.on("connect", () => logger.info("Redis connected"));
