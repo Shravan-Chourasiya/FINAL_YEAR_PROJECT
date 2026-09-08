@@ -20,12 +20,9 @@ export function requireInterviewState(...allowedStatuses: InterviewStatus[]) {
 
     if (!interview) {
       return next(
-        new AppError(
-          "Interview not found",
-          StatusCodes.NOT_FOUND,
-          ErrorCodes.INTERVIEW_NOT_FOUND,
-          { isOperational: true },
-        ),
+        new AppError("Interview not found", StatusCodes.NOT_FOUND, ErrorCodes.INTERVIEW_NOT_FOUND, {
+          isOperational: true,
+        }),
       );
     }
 
