@@ -7,7 +7,9 @@ export const deviceTypeEnum = pgEnum("device_type", ["desktop", "mobile", "table
 export const sessionsTable = pgTable("sessions", {
   // Base fields
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
 
   // Account fields
   activeSessionCount: integer("active_session_count").notNull().default(1),
@@ -39,5 +41,8 @@ export const sessionsTable = pgTable("sessions", {
 
   // Timestamps
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdateFn(dbNow),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(dbNow),
 });

@@ -719,9 +719,14 @@ export async function deleteAllSessionsService(userId: string) {
     .where(and(eq(sessionsTable.userId, userId), eq(sessionsTable.isActive, true)));
 
   if (!sessions) {
-    throw new AppError("No sessions found for the User", StatusCodes.NOT_FOUND, ErrorCodes.RESOURCE_NOT_FOUND, {
-      isOperational: true,
-    });
+    throw new AppError(
+      "No sessions found for the User",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.RESOURCE_NOT_FOUND,
+      {
+        isOperational: true,
+      },
+    );
   }
   await Promise.all([
     db

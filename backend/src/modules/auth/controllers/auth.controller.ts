@@ -384,7 +384,6 @@ export const updateEmailController = async (
   }
 };
 
-
 // ── Email Update — Verify OTP + Reset ─────────────────────────────────────
 
 export const emailUpdateOtpVerifyController = async (
@@ -406,7 +405,6 @@ export const emailUpdateOtpVerifyController = async (
   }
 };
 
-
 export const getMeController = async (
   req: Request,
   res: Response,
@@ -419,7 +417,7 @@ export const getMeController = async (
       success: true,
       statusCode: StatusCodes.OK,
       message: "User information retrieved successfully.",
-      data:user
+      data: user,
     };
     res.status(StatusCodes.OK).json(response);
   } catch (error) {
@@ -475,14 +473,14 @@ export const deleteSessionController = async (
   try {
     const authReq = req as AuthenticatedRequest;
     const sessionId = req.params.id;
-    if(!sessionId){
+    if (!sessionId) {
       throw new AppError(
         "Session ID is required",
         StatusCodes.BAD_REQUEST,
         ErrorCodes.AUTH_INVALID_CREDENTIALS,
         { isOperational: true },
       );
-    };
+    }
     await deleteSessionService(authReq.auth.userId, String(sessionId));
     const response: SuccessResponse = {
       success: true,
@@ -494,4 +492,4 @@ export const deleteSessionController = async (
   } catch (error) {
     next(error);
   }
-}
+};

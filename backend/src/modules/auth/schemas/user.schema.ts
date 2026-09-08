@@ -1,7 +1,21 @@
-import { pgTable, uuid, varchar, boolean, pgEnum, integer, jsonb, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  varchar,
+  boolean,
+  pgEnum,
+  integer,
+  jsonb,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { dbNow } from "../../../utils/db.util.js";
 
-export const accountStatusEnum = pgEnum("account_status", ["active", "suspended", "disabled", "deleted"]);
+export const accountStatusEnum = pgEnum("account_status", [
+  "active",
+  "suspended",
+  "disabled",
+  "deleted",
+]);
 export const userRoleEnum = pgEnum("user_role", ["user", "admin", "moderator", "owner"]);
 export const oauthProviderEnum = pgEnum("oauth_provider", ["google", "facebook", "github", "none"]);
 export const twoFATypeEnum = pgEnum("two_fa_type", ["none", "sms", "authenticator"]);
@@ -51,5 +65,8 @@ export const usersTable = pgTable("users", {
 
   // Timestamps
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdateFn(dbNow),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(dbNow),
 });
