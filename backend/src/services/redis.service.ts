@@ -20,8 +20,8 @@ export const otpService = {
     purpose: string,
     userId?: string,
     newValue?: string,
-    ttl: number = 600,
-    keyPrefix: string = "otp:",
+    ttl = 600,
+    keyPrefix = "otp:",
   ): Promise<{ success: boolean; message?: string }> {
     const otpExists = await this.otpExists(email, purpose, keyPrefix);
     if (otpExists) {
@@ -51,7 +51,7 @@ export const otpService = {
     email: string,
     otp: string,
     purpose: string,
-    keyPrefix: string = "otp:",
+    keyPrefix = "otp:",
   ): Promise<{ success: boolean; message: string; userId?: string; newValue?: string }> {
     const key = `${keyPrefix}${email.toLowerCase()}:${purpose}`;
     const rawData = await redisClient.get(key);
@@ -107,7 +107,10 @@ export const otpService = {
       const remainingTTL = Math.max(1, Math.floor((otpData.expiresAt - Date.now()) / 1000));
       await redisClient.setex(key, remainingTTL, JSON.stringify(otpData));
 
-      return { success: false, message: `Invalid OTP. ${otpData.attemptsLeft} attempts remaining.` };
+      return {
+        success: false,
+        message: `Invalid OTP. ${otpData.attemptsLeft} attempts remaining.`,
+      };
     }
 
     await redisClient.del(key);
@@ -120,13 +123,17 @@ export const otpService = {
     };
   },
 
-  async otpExists(email: string, purpose: string, keyPrefix: string = "otp:"): Promise<boolean> {
+  async otpExists(email: string, purpose: string, keyPrefix = "otp:"): Promise<boolean> {
     const key = `${keyPrefix}${email.toLowerCase()}:${purpose}`;
     const exists = await redisClient.exists(key);
     return exists === 1;
   },
 
-  async getRemainingAttempts(email: string, purpose: string, keyPrefix: string = "otp:"): Promise<number | null> {
+  async getRemainingAttempts(
+    email: string,
+    purpose: string,
+    keyPrefix = "otp:",
+  ): Promise<number | null> {
     const key = `${keyPrefix}${email.toLowerCase()}:${purpose}`;
     const data = await redisClient.get(key);
     if (!data) return null;
@@ -134,12 +141,12 @@ export const otpService = {
     return otpData.attemptsLeft;
   },
 
-  async invalidateOTP(email: string, purpose: string, keyPrefix: string = "otp:"): Promise<void> {
+  async invalidateOTP(email: string, purpose: string, keyPrefix = "otp:"): Promise<void> {
     const key = `${keyPrefix}${email.toLowerCase()}:${purpose}`;
     await redisClient.del(key);
   },
 
-  async getOTPData(email: string, purpose: string, keyPrefix: string = "otp:"): Promise<PendingOTP | null> {
+  async getOTPData(email: string, purpose: string, keyPrefix = "otp:"): Promise<PendingOTP | null> {
     const key = `${keyPrefix}${email.toLowerCase()}:${purpose}`;
     const data = await redisClient.get(key);
     if (!data) return null;

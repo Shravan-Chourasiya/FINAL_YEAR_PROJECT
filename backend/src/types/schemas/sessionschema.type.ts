@@ -1,4 +1,4 @@
-export type SessionType = {
+export interface SessionType {
   // Session Base fields
   id: string;
   userId: string;
@@ -26,4 +26,4 @@ export type SessionType = {
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
-};
+}

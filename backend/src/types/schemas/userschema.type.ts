@@ -1,4 +1,4 @@
-export type UserType = {
+export interface UserType {
   // User Base fields
   id: string;
   email: string;
@@ -34,4 +34,4 @@ export type UserType = {
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
-};
+}

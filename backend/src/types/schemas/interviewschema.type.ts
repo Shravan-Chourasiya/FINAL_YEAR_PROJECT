@@ -1,4 +1,4 @@
-export type InterviewType = {
+export interface InterviewType {
   // Interview Base fields
   id: string;
   userId: string;
@@ -17,7 +17,7 @@ export type InterviewType = {
   // Interview Status fields
   interviewStatus: string;
   isInterviewScheduled: boolean;
-  interviewScheduledDate?: Date|undefined;
+  interviewScheduledDate?: Date | undefined;
 
   // Interview Outcome fields
   interviewQuestionsGeneratedCount: number | undefined;
@@ -28,7 +28,7 @@ export type InterviewType = {
     questionWiseScore: {
       questionId: string;
       score: number;
-      answerId?: string|undefined;
+      answerId?: string | undefined;
     }[];
     finalFeedBack: string;
     suggestedImprovements?: string | undefined;
@@ -38,4 +38,4 @@ export type InterviewType = {
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
-};
+}
