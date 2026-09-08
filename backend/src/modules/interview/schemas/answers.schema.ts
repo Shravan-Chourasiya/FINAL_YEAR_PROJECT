@@ -8,8 +8,12 @@ export const answerStateEnum = pgEnum("answer_state", ["RECEIVED", "PERSISTED", 
 
 export const interviewAnswersTable = pgTable("interview_answers", {
   id: uuid("id").primaryKey().defaultRandom(),
-  interviewId: uuid("interview_id").notNull().references(() => interviewsTable.id, { onDelete: "cascade" }),
-  questionId: uuid("question_id").notNull().references(() => interviewQuestionsTable.id, { onDelete: "cascade" }),
+  interviewId: uuid("interview_id")
+    .notNull()
+    .references(() => interviewsTable.id, { onDelete: "cascade" }),
+  questionId: uuid("question_id")
+    .notNull()
+    .references(() => interviewQuestionsTable.id, { onDelete: "cascade" }),
   answerData: varchar("answer_data", { length: 5000 }).notNull(),
   answerType: answerTypeEnum("answer_type").notNull(),
   answerState: answerStateEnum("answer_state").notNull().default("PERSISTED"),
@@ -25,5 +29,8 @@ export const interviewAnswersTable = pgTable("interview_answers", {
   }>(),
   answeredAt: timestamp("answered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdateFn(dbNow),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(dbNow),
 });

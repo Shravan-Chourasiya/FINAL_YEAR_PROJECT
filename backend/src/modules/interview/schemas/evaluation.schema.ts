@@ -6,9 +6,15 @@ import { interviewAnswersTable } from "./answers.schema.js";
 
 export const answerEvaluationTable = pgTable("answer_evaluations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  interviewId: uuid("interview_id").notNull().references(() => interviewsTable.id, { onDelete: "cascade" }),
-  questionId: uuid("question_id").notNull().references(() => interviewQuestionsTable.id, { onDelete: "cascade" }),
-  answerId: uuid("answer_id").notNull().references(() => interviewAnswersTable.id, { onDelete: "cascade" }),
+  interviewId: uuid("interview_id")
+    .notNull()
+    .references(() => interviewsTable.id, { onDelete: "cascade" }),
+  questionId: uuid("question_id")
+    .notNull()
+    .references(() => interviewQuestionsTable.id, { onDelete: "cascade" }),
+  answerId: uuid("answer_id")
+    .notNull()
+    .references(() => interviewAnswersTable.id, { onDelete: "cascade" }),
   score: numeric("score", { precision: 5, scale: 2 }).notNull(),
   correctnessScore: numeric("correctness_score", { precision: 5, scale: 2 }).notNull(),
   relevanceScore: numeric("relevance_score", { precision: 5, scale: 2 }).notNull(),
@@ -18,5 +24,8 @@ export const answerEvaluationTable = pgTable("answer_evaluations", {
   strengths: text("strengths").array().notNull(),
   weaknesses: text("weaknesses").array().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdateFn(dbNow),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(dbNow),
 });

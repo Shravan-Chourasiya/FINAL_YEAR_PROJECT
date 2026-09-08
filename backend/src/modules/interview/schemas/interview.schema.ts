@@ -1,9 +1,34 @@
-import { pgTable, uuid, varchar, integer, boolean, pgEnum, jsonb, timestamp } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  uuid,
+  varchar,
+  integer,
+  boolean,
+  pgEnum,
+  jsonb,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { dbNow } from "../../../utils/db.util.js";
 import { usersTable } from "../../auth/schemas/user.schema.js";
 
-export const interviewStatusEnum = pgEnum("interview_status", ["DRAFT", "READY", "SCHEDULED", "INPROGRESS", "COMPLETED", "CANCELLED", "ABANDONED", "EXPIRED", "TIMED_OUT"]);
-export const interviewCompanyStyleEnum = pgEnum("interview_company_style", ["MANGOS", "FAANG", "MAANG", "STARTUP", "CUSTOM"]);
+export const interviewStatusEnum = pgEnum("interview_status", [
+  "DRAFT",
+  "READY",
+  "SCHEDULED",
+  "INPROGRESS",
+  "COMPLETED",
+  "CANCELLED",
+  "ABANDONED",
+  "EXPIRED",
+  "TIMED_OUT",
+]);
+export const interviewCompanyStyleEnum = pgEnum("interview_company_style", [
+  "MANGOS",
+  "FAANG",
+  "MAANG",
+  "STARTUP",
+  "CUSTOM",
+]);
 export const interviewTypeEnum = pgEnum("interview_type", ["BEHAVIORAL", "TECHNICAL", "MIXED"]);
 export const interviewVerdictEnum = pgEnum("interview_verdict", ["PASS", "FAIL", "INCONCLUSIVE"]);
 
@@ -12,7 +37,9 @@ export const interviewDifficultyEnum = pgEnum("interview_difficulty", ["EASY", "
 export const interviewsTable = pgTable("interviews", {
   // Base fields
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
 
   // Config fields (typed columns — stable scalars promoted out of jsonb)
   interviewTitle: varchar("interview_title", { length: 255 }).notNull(),
@@ -23,11 +50,13 @@ export const interviewsTable = pgTable("interviews", {
   interviewDuration: integer("interview_duration").notNull(),
 
   // Dynamic metadata (jobRole, jobSkills, maxFollowUps — fields that vary per interview)
-  interviewMetaData: jsonb("interview_meta_data").$type<{
-    jobRole?: string;
-    jobSkills?: string[];
-    maxFollowUps?: number;
-  }>().notNull(),
+  interviewMetaData: jsonb("interview_meta_data")
+    .$type<{
+      jobRole?: string;
+      jobSkills?: string[];
+      maxFollowUps?: number;
+    }>()
+    .notNull(),
 
   // Status fields
   interviewStatus: interviewStatusEnum("interview_status").notNull().default("READY"),
@@ -54,5 +83,13 @@ export const interviewsTable = pgTable("interviews", {
 
   // Timestamps
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdateFn(dbNow),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdateFn(dbNow),
+
+  // TODO(codebox): Add isCodingInterview boolean and codingConfig jsonb columns here
+  // once src/integrations/codebox is ready. codingConfig shape:
+  //   { language: string; sandboxConfig?: Record<string, unknown> }
+  // Requires a migration; the Zod schema (interview.zschema.ts) must be updated in the same PR.
 });
