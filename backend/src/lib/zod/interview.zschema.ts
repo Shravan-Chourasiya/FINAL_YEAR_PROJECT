@@ -1,7 +1,5 @@
 import * as z from "zod";
-import type { InterviewType } from "../../types/schemas/interviewschema.type.js";
-
-export const interviewSchema: z.ZodType<InterviewType> = z.object({
+export const interviewSchema = z.object({
   // Interview Base fields
   id: z.string().uuid({ message: "Invalid UUID format" }),
   userId: z.string().uuid({ message: "Invalid UUID format" }),
@@ -34,11 +32,10 @@ export const interviewSchema: z.ZodType<InterviewType> = z.object({
     .max(180, { message: "Maximum interview duration is 180 minutes" }),
 
   // Interview Status fields
-  interviewStatus: z
-    .enum(["SCHEDULED", "COMPLETED", "CANCELLED", "INPROGRESS", "DRAFT"], {
-      message: "Invalid interview status",
-    }),
-    isInterviewScheduled: z.boolean().default(false),
+  interviewStatus: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "INPROGRESS", "DRAFT"], {
+    message: "Invalid interview status",
+  }),
+  isInterviewScheduled: z.boolean().default(false),
   interviewScheduledDate: z.date().optional(),
 
   // Interview Outcome fields
@@ -51,27 +48,32 @@ export const interviewSchema: z.ZodType<InterviewType> = z.object({
     .int()
     .max(25, { message: "Maximum of 25 questions allowed" })
     .optional(),
-  interviewOutcome: z.object({
-    finalScore: z.number().int().max(100, { message: "Maximum score is 100" }),
-    finalVerdict: z
-      .enum(["PASS", "FAIL", "INCONCLUSIVE"], { message: "Invalid interview outcome" }),
+  interviewOutcome: z
+    .object({
+      finalScore: z.number().int().max(100, { message: "Maximum score is 100" }),
+      finalVerdict: z.enum(["PASS", "FAIL", "INCONCLUSIVE"], {
+        message: "Invalid interview outcome",
+      }),
 
-    questionWiseScore: z.array(z.object({
-      questionId: z.string().uuid({ message: "Invalid UUID format" }),
-      score: z.number().int().max(100, { message: "Maximum score is 100" }),
-      answerId: z.string().uuid({ message: "Invalid UUID format" }).optional(),
-    })),
+      questionWiseScore: z.array(
+        z.object({
+          questionId: z.string().uuid({ message: "Invalid UUID format" }),
+          score: z.number().int().max(100, { message: "Maximum score is 100" }),
+          answerId: z.string().uuid({ message: "Invalid UUID format" }).optional(),
+        }),
+      ),
 
-    finalFeedBack: z.string().max(3000, { message: "Feedback is too long" }),
-    suggestedImprovements: z
-      .string()
-      .max(3000, { message: "Suggested improvements are too long" })
-      .optional(),
-    helpfulResources: z
-      .string()
-      .max(3000, { message: "Helpful resources are too long" })
-      .optional(),
-  }).optional(),
+      finalFeedBack: z.string().max(3000, { message: "Feedback is too long" }),
+      suggestedImprovements: z
+        .string()
+        .max(3000, { message: "Suggested improvements are too long" })
+        .optional(),
+      helpfulResources: z
+        .string()
+        .max(3000, { message: "Helpful resources are too long" })
+        .optional(),
+    })
+    .optional(),
 
   // Timestamps
   createdAt: z.date(),
