@@ -12,19 +12,19 @@ let _io: IoServer | null = null;
 export function attachSocketServer(httpServer: HttpServer): IoServer {
   const io = new Server(httpServer, {
     cors: {
-      origin:      corsOptions.origin,
+      origin: corsOptions.origin,
       credentials: corsOptions.credentials,
-      methods:     corsOptions.methods,
+      methods: corsOptions.methods,
     },
     // Socket.IO built-in heartbeat — detects dead connections at the transport level
     pingInterval: 25_000, // server pings every 25 s
-    pingTimeout:  20_000, // client must respond within 20 s or is considered dead
+    pingTimeout: 20_000, // client must respond within 20 s or is considered dead
     // Reconnection is handled client-side; server just re-accepts the connection
     connectionStateRecovery: {
       maxDisconnectionDuration: 30_000, // matches GRACE_TTL_SECONDS
       skipMiddlewares: false,
     },
-  }) as IoServer;
+  });
 
   registerSocketAuth(io);
   registerInterviewGateway(io);

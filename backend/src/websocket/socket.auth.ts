@@ -7,8 +7,8 @@ export function registerSocketAuth(io: IoServer): void {
   io.use(async (socket, next) => {
     try {
       const rawCookies = socket.handshake.headers.cookie ?? "";
-      const cookies    = parseCookies(rawCookies);
-      const token      = cookies[COOKIE_NAMES.ACCESS];
+      const cookies = parseCookies(rawCookies);
+      const token = cookies[COOKIE_NAMES.ACCESS];
 
       if (!token) {
         return next(new Error("AUTH_UNAUTHORIZED: access token cookie missing"));
@@ -26,7 +26,7 @@ export function registerSocketAuth(io: IoServer): void {
       }
 
       // Attach auth data to the socket — available in all event handlers
-      socket.data.userId    = payload.userId;
+      socket.data.userId = payload.userId;
       socket.data.sessionId = payload.sessionId;
 
       logger.debug({ userId: payload.userId, socketId: socket.id }, "[ws] socket authenticated");

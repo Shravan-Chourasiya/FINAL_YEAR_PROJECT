@@ -1,13 +1,13 @@
 import { redisClient } from "../config/redis.init.js";
 
-const SESSION_PREFIX = "socket:session:";  // socket:session:{interviewId} → SocketSession JSON
-const GRACE_PREFIX   = "socket:grace:";    // socket:grace:{interviewId}   → "1", TTL = grace seconds
+const SESSION_PREFIX = "socket:session:"; // socket:session:{interviewId} → SocketSession JSON
+const GRACE_PREFIX = "socket:grace:"; // socket:grace:{interviewId}   → "1", TTL = grace seconds
 
 const GRACE_TTL_SECONDS = 30;
 
 export interface SocketSession {
-  socketId:    string;
-  userId:      string;
+  socketId: string;
+  userId: string;
   connectedAt: string; // ISO-8601
 }
 
