@@ -42,9 +42,21 @@ export function createInterviewRouter() {
     createInterviewController,
   );
 
-  router.get("/interviews", requireAuth, csrfTokenMiddleware, InterviewLimiter, getAllInterviewsController);
+  router.get(
+    "/interviews",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    getAllInterviewsController,
+  );
 
-  router.get("/interviews/resumable", requireAuth, csrfTokenMiddleware, InterviewLimiter, getResumableInterviewsController);
+  router.get(
+    "/interviews/resumable",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    getResumableInterviewsController,
+  );
 
   router.get(
     "/interviews/:id",
