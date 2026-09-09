@@ -26,7 +26,7 @@ function buildApp(limit: number, windowMs: number, store: MemoryStore): Express 
     standardHeaders: "draft-8",
     legacyHeaders: false,
     store,
-    keyGenerator: (req) => req.headers["x-client-id"] as string ?? req.ip ?? "unknown",
+    keyGenerator: (req) => (req.headers["x-client-id"] as string) ?? req.ip ?? "unknown",
     handler: (_req, res) => {
       res.status(StatusCodes.TOO_MANY_REQUESTS).json({ error: "rate_limit_exceeded" });
     },
@@ -68,7 +68,9 @@ describe("Rate limiter — allow/block", () => {
     ts = await startApp(app);
   });
 
-  afterEach(async () => { await ts.close(); });
+  afterEach(async () => {
+    await ts.close();
+  });
 
   it("requests under the limit are allowed (200)", async () => {
     expect(await hit(ts.baseUrl, "client-a")).toBe(200);

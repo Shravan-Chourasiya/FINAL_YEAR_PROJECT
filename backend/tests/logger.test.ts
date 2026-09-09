@@ -5,7 +5,6 @@ import { Transform } from "stream";
 import { ErrorCodes } from "../src/constants/errorCodes.js";
 import { AppError } from "../src/utils/AppError.js";
 
-
 // ---------------------------------------------------------------------------
 // Helper: create a pino logger that writes to a custom stream, returning
 // collected log lines.
@@ -54,7 +53,6 @@ function createTestLogger(opts?: { level?: string }) {
   return { logger, logs };
 }
 
-
 describe("Logger redaction", () => {
   let logs: Record<string, unknown>[];
   let logger: pino.Logger;
@@ -70,13 +68,16 @@ describe("Logger redaction", () => {
   });
 
   it("redacts req.headers.authorization", () => {
-    logger.info({
-      req: {
-        headers: {
-          authorization: "Bearer secret-token-12345",
+    logger.info(
+      {
+        req: {
+          headers: {
+            authorization: "Bearer secret-token-12345",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     expect(logs[0]).toHaveProperty("req");
@@ -86,13 +87,16 @@ describe("Logger redaction", () => {
   });
 
   it("redacts req.headers.cookie", () => {
-    logger.info({
-      req: {
-        headers: {
-          cookie: "session=abc123; token=xyz",
+    logger.info(
+      {
+        req: {
+          headers: {
+            cookie: "session=abc123; token=xyz",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     const req = logs[0]["req"] as Record<string, unknown>;
@@ -101,13 +105,16 @@ describe("Logger redaction", () => {
   });
 
   it("redacts res.headers['set-cookie']", () => {
-    logger.info({
-      res: {
-        headers: {
-          "set-cookie": "session=abc123; HttpOnly; Secure",
+    logger.info(
+      {
+        res: {
+          headers: {
+            "set-cookie": "session=abc123; HttpOnly; Secure",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     const res = logs[0]["res"] as Record<string, unknown>;
@@ -116,14 +123,17 @@ describe("Logger redaction", () => {
   });
 
   it("redacts req.body.password", () => {
-    logger.info({
-      req: {
-        body: {
-          password: "supersecret123",
-          email: "user@example.com",
+    logger.info(
+      {
+        req: {
+          body: {
+            password: "supersecret123",
+            email: "user@example.com",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     const req = logs[0]["req"] as Record<string, unknown>;
@@ -133,20 +143,23 @@ describe("Logger redaction", () => {
   });
 
   it("redacts token fields", () => {
-    logger.info({
-      req: {
-        body: {
-          token: "secret-token",
-          accessToken: "access-secret",
-          refreshToken: "refresh-secret",
-          sessionToken: "session-secret",
-          csrfToken: "csrf-secret",
-          verificationToken: "verify-secret",
-          resetToken: "reset-secret",
-          otp: "123456",
+    logger.info(
+      {
+        req: {
+          body: {
+            token: "secret-token",
+            accessToken: "access-secret",
+            refreshToken: "refresh-secret",
+            sessionToken: "session-secret",
+            csrfToken: "csrf-secret",
+            verificationToken: "verify-secret",
+            resetToken: "reset-secret",
+            otp: "123456",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     const req = logs[0]["req"] as Record<string, unknown>;
@@ -162,19 +175,22 @@ describe("Logger redaction", () => {
   });
 
   it("redacts credential fields", () => {
-    logger.info({
-      req: {
-        body: {
-          secret: "app-secret",
-          apiKey: "api-key-123",
-          clientSecret: "client-secret-abc",
-          privateKey: "private-key-xyz",
-          currentPassword: "old-pass",
-          newPassword: "new-pass",
-          passwordConfirmation: "new-pass-again",
+    logger.info(
+      {
+        req: {
+          body: {
+            secret: "app-secret",
+            apiKey: "api-key-123",
+            clientSecret: "client-secret-abc",
+            privateKey: "private-key-xyz",
+            currentPassword: "old-pass",
+            newPassword: "new-pass",
+            passwordConfirmation: "new-pass-again",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     const req = logs[0]["req"] as Record<string, unknown>;
@@ -189,15 +205,18 @@ describe("Logger redaction", () => {
   });
 
   it("does NOT redact safe fields", () => {
-    logger.info({
-      req: {
-        body: {
-          name: "Alice",
-          email: "alice@example.com",
-          role: "admin",
+    logger.info(
+      {
+        req: {
+          body: {
+            name: "Alice",
+            email: "alice@example.com",
+            role: "admin",
+          },
         },
       },
-    }, "test");
+      "test",
+    );
 
     expect(logs).toHaveLength(1);
     const req = logs[0]["req"] as Record<string, unknown>;
@@ -208,23 +227,14 @@ describe("Logger redaction", () => {
   });
 });
 
-
 describe("Error handler behavior", () => {
   it("AppError has correct statusCode", () => {
-    const error = new AppError(
-      "Unauthorized",
-      401,
-      ErrorCodes.AUTH_UNAUTHORIZED,
-    );
+    const error = new AppError("Unauthorized", 401, ErrorCodes.AUTH_UNAUTHORIZED);
     expect(error.statusCode).toBe(401);
   });
 
   it("AppError has correct errorCode", () => {
-    const error = new AppError(
-      "Not found",
-      404,
-      ErrorCodes.RESOURCE_NOT_FOUND,
-    );
+    const error = new AppError("Not found", 404, ErrorCodes.RESOURCE_NOT_FOUND);
     expect(error.errorCode).toBe("RESOURCE_NOT_FOUND");
   });
 

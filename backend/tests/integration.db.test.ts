@@ -15,9 +15,15 @@ import { sessionsTable } from "../src/modules/auth/schemas/session.schema.js";
 import { interviewsTable } from "../src/modules/interview/schemas/interview.schema.js";
 import { randomUUID } from "crypto";
 
-beforeAll(async () => { await setup(); }, 120_000);
-afterAll(async () => { await teardown(); });
-beforeEach(async () => { await resetDb(); });
+beforeAll(async () => {
+  await setup();
+}, 120_000);
+afterAll(async () => {
+  await teardown();
+});
+beforeEach(async () => {
+  await resetDb();
+});
 
 // ── User repository ───────────────────────────────────────────────────────────
 
@@ -72,7 +78,9 @@ describe("users table", () => {
   it("defaults isVerified to false when not specified", async () => {
     const { db } = getContainers();
     const u = { ...baseUser(), isVerified: undefined };
-    await db.insert(usersTable).values({ email: u.email, password: u.password, username: u.username });
+    await db
+      .insert(usersTable)
+      .values({ email: u.email, password: u.password, username: u.username });
 
     const [found] = await db.select().from(usersTable).where(eq(usersTable.email, u.email));
     expect(found.isVerified).toBe(false);
@@ -83,7 +91,10 @@ describe("users table", () => {
     const u = baseUser();
     await db.insert(usersTable).values(u);
 
-    await db.update(usersTable).set({ accountStatus: "disabled" }).where(eq(usersTable.email, u.email));
+    await db
+      .update(usersTable)
+      .set({ accountStatus: "disabled" })
+      .where(eq(usersTable.email, u.email));
 
     const [found] = await db.select().from(usersTable).where(eq(usersTable.email, u.email));
     expect(found.accountStatus).toBe("disabled");
@@ -177,9 +188,15 @@ describe("sessions table", () => {
   it("updates isActive and isRevoked on logout", async () => {
     const { db } = getContainers();
     const user = await createUser();
-    const [session] = await db.insert(sessionsTable).values(baseSession(user.id)).returning({ id: sessionsTable.id });
+    const [session] = await db
+      .insert(sessionsTable)
+      .values(baseSession(user.id))
+      .returning({ id: sessionsTable.id });
 
-    await db.update(sessionsTable).set({ isActive: false, isRevoked: true }).where(eq(sessionsTable.id, session!.id));
+    await db
+      .update(sessionsTable)
+      .set({ isActive: false, isRevoked: true })
+      .where(eq(sessionsTable.id, session!.id));
 
     const [found] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, session!.id));
     expect(found.isActive).toBe(false);
@@ -192,12 +209,15 @@ describe("sessions table", () => {
 describe("interviews table", () => {
   async function createUser() {
     const { db } = getContainers();
-    const [user] = await db.insert(usersTable).values({
-      email: `user-${randomUUID()}@example.com`,
-      password: "$2b$12$hash",
-      username: `user_${randomUUID().slice(0, 8)}`,
-      isVerified: true,
-    }).returning({ id: usersTable.id });
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        email: `user-${randomUUID()}@example.com`,
+        password: "$2b$12$hash",
+        username: `user_${randomUUID().slice(0, 8)}`,
+        isVerified: true,
+      })
+      .returning({ id: usersTable.id });
     return user!;
   }
 
@@ -205,12 +225,15 @@ describe("interviews table", () => {
     const { db } = getContainers();
     const user = await createUser();
 
-    const [interview] = await db.insert(interviewsTable).values({
-      userId: user.id,
-      interviewTitle: "SWE Interview",
-      interviewMetaData: { jobRole: "Engineer", interviewType: "MIXED" },
-      interviewDuration: 30,
-    }).returning({ id: interviewsTable.id, userId: interviewsTable.userId });
+    const [interview] = await db
+      .insert(interviewsTable)
+      .values({
+        userId: user.id,
+        interviewTitle: "SWE Interview",
+        interviewMetaData: { jobRole: "Engineer", interviewType: "MIXED" },
+        interviewDuration: 30,
+      })
+      .returning({ id: interviewsTable.id, userId: interviewsTable.userId });
 
     expect(interview).toBeDefined();
     expect(interview.userId).toBe(user.id);
@@ -227,7 +250,10 @@ describe("interviews table", () => {
       interviewDuration: 45,
     });
 
-    const [found] = await db.select().from(interviewsTable).where(eq(interviewsTable.userId, user.id));
+    const [found] = await db
+      .select()
+      .from(interviewsTable)
+      .where(eq(interviewsTable.userId, user.id));
     expect(found.userId).toBe(user.id);
   });
 
@@ -242,7 +268,10 @@ describe("interviews table", () => {
       interviewDuration: 20,
     });
 
-    const [found] = await db.select().from(interviewsTable).where(eq(interviewsTable.userId, user.id));
+    const [found] = await db
+      .select()
+      .from(interviewsTable)
+      .where(eq(interviewsTable.userId, user.id));
     expect(found.interviewStatus).toBe("DRAFT");
   });
 
@@ -259,7 +288,10 @@ describe("interviews table", () => {
 
     await db.delete(usersTable).where(eq(usersTable.id, user.id));
 
-    const interviews = await db.select().from(interviewsTable).where(eq(interviewsTable.userId, user.id));
+    const interviews = await db
+      .select()
+      .from(interviewsTable)
+      .where(eq(interviewsTable.userId, user.id));
     expect(interviews).toHaveLength(0);
   });
 
@@ -267,11 +299,27 @@ describe("interviews table", () => {
     const { db } = getContainers();
     const [u1, u2] = await Promise.all([createUser(), createUser()]);
 
-    await db.insert(interviewsTable).values({ userId: u1.id, interviewTitle: "U1 Interview", interviewMetaData: {}, interviewDuration: 30 });
-    await db.insert(interviewsTable).values({ userId: u2.id, interviewTitle: "U2 Interview", interviewMetaData: {}, interviewDuration: 30 });
+    await db.insert(interviewsTable).values({
+      userId: u1.id,
+      interviewTitle: "U1 Interview",
+      interviewMetaData: {},
+      interviewDuration: 30,
+    });
+    await db.insert(interviewsTable).values({
+      userId: u2.id,
+      interviewTitle: "U2 Interview",
+      interviewMetaData: {},
+      interviewDuration: 30,
+    });
 
-    const u1Interviews = await db.select().from(interviewsTable).where(eq(interviewsTable.userId, u1.id));
-    const u2Interviews = await db.select().from(interviewsTable).where(eq(interviewsTable.userId, u2.id));
+    const u1Interviews = await db
+      .select()
+      .from(interviewsTable)
+      .where(eq(interviewsTable.userId, u1.id));
+    const u2Interviews = await db
+      .select()
+      .from(interviewsTable)
+      .where(eq(interviewsTable.userId, u2.id));
 
     expect(u1Interviews).toHaveLength(1);
     expect(u2Interviews).toHaveLength(1);

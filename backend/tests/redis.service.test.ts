@@ -21,15 +21,17 @@ import { otpService } from "../src/services/redis.service.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makePendingOTP(overrides: Partial<{
-  otpHash: string;
-  attemptsLeft: number;
-  failedAttempts: number;
-  expiresAt: number;
-  createdAt: number;
-  newValue: string;
-  userId: string;
-}> = {}) {
+function makePendingOTP(
+  overrides: Partial<{
+    otpHash: string;
+    attemptsLeft: number;
+    failedAttempts: number;
+    expiresAt: number;
+    createdAt: number;
+    newValue: string;
+    userId: string;
+  }> = {},
+) {
   return JSON.stringify({
     otpHash: "$2b$12$hashedotp",
     email: "user@example.com",
@@ -120,7 +122,7 @@ describe("otpService.verifyOTP", () => {
 
   it("returns rate limit message after 3+ failed attempts within 1 minute", async () => {
     redisMock.get.mockResolvedValue(
-      makePendingOTP({ failedAttempts: 3, createdAt: Date.now() - 10_000 })
+      makePendingOTP({ failedAttempts: 3, createdAt: Date.now() - 10_000 }),
     );
 
     const result = await otpService.verifyOTP("user@example.com", "wrong", "registration");
@@ -141,7 +143,9 @@ describe("otpService.verifyOTP", () => {
   it("decrements attemptsLeft and updates Redis on wrong OTP", async () => {
     const bcrypt = await vi.importActual<typeof import("bcrypt")>("bcrypt");
     const hash = await bcrypt.hash("999999", 1);
-    redisMock.get.mockResolvedValue(makePendingOTP({ otpHash: hash, attemptsLeft: 5, failedAttempts: 0 }));
+    redisMock.get.mockResolvedValue(
+      makePendingOTP({ otpHash: hash, attemptsLeft: 5, failedAttempts: 0 }),
+    );
 
     const result = await otpService.verifyOTP("user@example.com", "123456", "registration");
 
@@ -153,7 +157,9 @@ describe("otpService.verifyOTP", () => {
   it("deletes key on successful verification", async () => {
     const bcrypt = await vi.importActual<typeof import("bcrypt")>("bcrypt");
     const hash = await bcrypt.hash("123456", 1);
-    redisMock.get.mockResolvedValue(makePendingOTP({ otpHash: hash, newValue: '{"username":"john"}' }));
+    redisMock.get.mockResolvedValue(
+      makePendingOTP({ otpHash: hash, newValue: '{"username":"john"}' }),
+    );
 
     const result = await otpService.verifyOTP("user@example.com", "123456", "registration");
 
@@ -164,7 +170,9 @@ describe("otpService.verifyOTP", () => {
   it("returns newValue on successful verification", async () => {
     const bcrypt = await vi.importActual<typeof import("bcrypt")>("bcrypt");
     const hash = await bcrypt.hash("123456", 1);
-    redisMock.get.mockResolvedValue(makePendingOTP({ otpHash: hash, newValue: '{"username":"john"}' }));
+    redisMock.get.mockResolvedValue(
+      makePendingOTP({ otpHash: hash, newValue: '{"username":"john"}' }),
+    );
 
     const result = await otpService.verifyOTP("user@example.com", "123456", "registration");
 

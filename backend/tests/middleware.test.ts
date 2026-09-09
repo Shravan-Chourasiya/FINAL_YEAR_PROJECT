@@ -49,12 +49,16 @@ function startServer(configure: (app: Express) => void = () => {}): Promise<Test
 
 describe("404 handler", () => {
   let ts: TestServer;
-  beforeEach(async () => { ts = await startServer(); });
-  afterEach(async () => { await ts.close(); });
+  beforeEach(async () => {
+    ts = await startServer();
+  });
+  afterEach(async () => {
+    await ts.close();
+  });
 
   it("returns standard error envelope for unknown route", async () => {
     const res = await fetch(`${ts.baseUrl}/nonexistent`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.NOT_FOUND);
     expect(body.success).toBe(false);
@@ -66,17 +70,26 @@ describe("404 handler", () => {
 
 describe("errorHandler middleware", () => {
   let ts: TestServer;
-  afterEach(async () => { await ts.close(); });
+  afterEach(async () => {
+    await ts.close();
+  });
 
   it("maps client-safe AppError to correct status and envelope", async () => {
     ts = await startServer((app) => {
       app.get("/throw", (_req, _res, next) => {
-        next(new AppError("Invalid credentials", StatusCodes.UNAUTHORIZED, ErrorCodes.AUTH_INVALID_CREDENTIALS, { isOperational: true }));
+        next(
+          new AppError(
+            "Invalid credentials",
+            StatusCodes.UNAUTHORIZED,
+            ErrorCodes.AUTH_INVALID_CREDENTIALS,
+            { isOperational: true },
+          ),
+        );
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.UNAUTHORIZED);
     expect(body.success).toBe(false);
@@ -88,18 +101,22 @@ describe("errorHandler middleware", () => {
   it("includes details in response when AppError has them", async () => {
     ts = await startServer((app) => {
       app.get("/throw-details", (_req, _res, next) => {
-        next(new AppError("Validation failed", StatusCodes.BAD_REQUEST, ErrorCodes.VALIDATION_FAILED, {
-          isOperational: true,
-          details: { fields: { email: "Invalid email" } },
-        }));
+        next(
+          new AppError("Validation failed", StatusCodes.BAD_REQUEST, ErrorCodes.VALIDATION_FAILED, {
+            isOperational: true,
+            details: { fields: { email: "Invalid email" } },
+          }),
+        );
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-details`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.BAD_REQUEST);
-    expect((body.error as { details: unknown }).details).toEqual({ fields: { email: "Invalid email" } });
+    expect((body.error as { details: unknown }).details).toEqual({
+      fields: { email: "Invalid email" },
+    });
   });
 
   it("sanitizes unexpected errors to generic 500 — no internal message exposed", async () => {
@@ -110,7 +127,7 @@ describe("errorHandler middleware", () => {
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-uncaught`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
 
     expect(res.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
     expect(body.success).toBe(false);
@@ -121,11 +138,13 @@ describe("errorHandler middleware", () => {
 
   it("never exposes stack trace to client", async () => {
     ts = await startServer((app) => {
-      app.get("/throw-stack", (_req, _res, next) => { next(new Error("Something broke")); });
+      app.get("/throw-stack", (_req, _res, next) => {
+        next(new Error("Something broke"));
+      });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-stack`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
 
     expect(body).not.toHaveProperty("stack");
     expect(JSON.stringify(body)).not.toContain("at ");
@@ -139,7 +158,7 @@ describe("errorHandler middleware", () => {
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-db`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
     const str = JSON.stringify(body).toLowerCase();
 
     expect(str).not.toContain("sql");
@@ -155,7 +174,7 @@ describe("errorHandler middleware", () => {
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-redis`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
     const str = JSON.stringify(body).toLowerCase();
 
     expect(str).not.toContain("redis");
@@ -170,7 +189,7 @@ describe("errorHandler middleware", () => {
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-fs`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
     const str = JSON.stringify(body);
 
     expect(str).not.toContain("/etc/passwd");
@@ -181,12 +200,18 @@ describe("errorHandler middleware", () => {
     ts = await startServer((app) => {
       app.get("/throw-5xx-app", (_req, _res, next) => {
         // isOperational defaults to false for 5xx — this is a server-side error
-        next(new AppError("DB pool exhausted at 127.0.0.1:5432", StatusCodes.INTERNAL_SERVER_ERROR, ErrorCodes.INTERNAL_SERVER_ERROR));
+        next(
+          new AppError(
+            "DB pool exhausted at 127.0.0.1:5432",
+            StatusCodes.INTERNAL_SERVER_ERROR,
+            ErrorCodes.INTERNAL_SERVER_ERROR,
+          ),
+        );
       });
     });
 
     const res = await fetch(`${ts.baseUrl}/throw-5xx-app`);
-    const body = await res.json() as Record<string, unknown>;
+    const body = (await res.json()) as Record<string, unknown>;
 
     expect(res.status).toBe(500);
     expect(body.message).toBe("An unexpected error occurred");

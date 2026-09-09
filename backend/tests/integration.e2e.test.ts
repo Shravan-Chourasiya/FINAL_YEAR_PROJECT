@@ -59,10 +59,15 @@ beforeAll(async () => {
   request = supertest(app);
 }, 120_000);
 
-afterAll(async () => { await teardown(); });
+afterAll(async () => {
+  await teardown();
+});
 
 function extractCookie(cookies: string[] | undefined, name: string): string | undefined {
-  return cookies?.find((c) => c.startsWith(`${name}=`))?.split(";")[0]?.split("=")[1];
+  return cookies
+    ?.find((c) => c.startsWith(`${name}=`))
+    ?.split(";")[0]
+    ?.split("=")[1];
 }
 
 describe("Phase 1 acceptance sequence", () => {
@@ -154,7 +159,8 @@ describe("Phase 1 acceptance sequence", () => {
 
     expect(getRes.status).toBe(200);
     expect(getRes.body.success).toBe(true);
-    const returnedInterview = (getRes.body as { data: { id: string; interviewTitle: string } }).data;
+    const returnedInterview = (getRes.body as { data: { id: string; interviewTitle: string } })
+      .data;
     expect(returnedInterview.id).toBe(interviewId);
     expect(returnedInterview.interviewTitle).toContain("Software Engineer");
 
@@ -173,7 +179,10 @@ describe("Phase 1 acceptance sequence", () => {
     // ── Step 8: Logout ────────────────────────────────────────────────────────
     const logoutRes = await request
       .post(`${API}/usr/logout`)
-      .set("Cookie", `access_token=${accessToken}; refresh_token=${refreshToken}; csrf_token=${csrfToken}`)
+      .set(
+        "Cookie",
+        `access_token=${accessToken}; refresh_token=${refreshToken}; csrf_token=${csrfToken}`,
+      )
       .set("x-csrf-token", csrfToken);
 
     expect(logoutRes.status).toBe(200);

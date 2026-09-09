@@ -55,7 +55,7 @@ describe("validateBody middleware", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "user@example.com", age: 25 }),
     });
-    const body = await res.json() as { received: { email: string; age: number } };
+    const body = (await res.json()) as { received: { email: string; age: number } };
 
     expect(res.status).toBe(StatusCodes.OK);
     expect(body.received.email).toBe("user@example.com");
@@ -78,7 +78,7 @@ describe("validateBody middleware", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "bad", age: 25 }),
     });
-    const body = await res.json() as { error: { code: string } };
+    const body = (await res.json()) as { error: { code: string } };
 
     expect(body.error.code).toBe(ErrorCodes.VALIDATION_FAILED);
   });
@@ -89,7 +89,7 @@ describe("validateBody middleware", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "bad" }),
     });
-    const body = await res.json() as { error: { details: { source: string } } };
+    const body = (await res.json()) as { error: { details: { source: string } } };
 
     expect(body.error.details.source).toBe("zod");
   });
@@ -100,7 +100,9 @@ describe("validateBody middleware", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "bad", age: 10 }),
     });
-    const body = await res.json() as { error: { details: { fields: { field: string; message: string }[] } } };
+    const body = (await res.json()) as {
+      error: { details: { fields: { field: string; message: string }[] } };
+    };
 
     expect(body.error.details.fields.length).toBeGreaterThan(0);
     expect(body.error.details.fields.some((f) => f.field === "email")).toBe(true);
@@ -113,7 +115,7 @@ describe("validateBody middleware", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "user@example.com", age: "25" }), // age as string
     });
-    const body = await res.json() as { received: { age: number } };
+    const body = (await res.json()) as { received: { age: number } };
 
     expect(res.status).toBe(StatusCodes.OK);
     expect(typeof body.received.age).toBe("number"); // coerced from string
@@ -135,7 +137,7 @@ describe("validateBody middleware", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "bad" }),
     });
-    const body = await res.json() as { message: string };
+    const body = (await res.json()) as { message: string };
 
     expect(body.message.toLowerCase()).toContain("zod");
   });

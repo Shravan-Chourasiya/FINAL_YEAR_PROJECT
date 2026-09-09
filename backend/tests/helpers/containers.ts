@@ -63,10 +63,7 @@ export async function teardown(): Promise<void> {
   if (!containers) return;
   await containers.redis.quit();
   await containers.pool.end();
-  await Promise.all([
-    containers.pgContainer.stop(),
-    containers.redisContainer.stop(),
-  ]);
+  await Promise.all([containers.pgContainer.stop(), containers.redisContainer.stop()]);
   containers = null;
 }
 

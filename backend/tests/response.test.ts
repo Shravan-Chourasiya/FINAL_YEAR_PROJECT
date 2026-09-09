@@ -20,7 +20,11 @@ describe("AppError", () => {
   });
 
   it("carries the message", () => {
-    const err = new AppError("The password you entered is incorrect", StatusCodes.UNAUTHORIZED, ErrorCodes.AUTH_INVALID_CREDENTIALS);
+    const err = new AppError(
+      "The password you entered is incorrect",
+      StatusCodes.UNAUTHORIZED,
+      ErrorCodes.AUTH_INVALID_CREDENTIALS,
+    );
     expect(err.message).toBe("The password you entered is incorrect");
   });
 
@@ -47,7 +51,11 @@ describe("AppError", () => {
   });
 
   it("isOperational defaults to false for 5xx", () => {
-    const err = new AppError("Internal", StatusCodes.INTERNAL_SERVER_ERROR, ErrorCodes.INTERNAL_SERVER_ERROR);
+    const err = new AppError(
+      "Internal",
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      ErrorCodes.INTERNAL_SERVER_ERROR,
+    );
     expect(err.isOperational).toBe(false);
   });
 
@@ -57,14 +65,23 @@ describe("AppError", () => {
   });
 
   it("isClientSafe is false for 5xx", () => {
-    const err = new AppError("Internal", StatusCodes.INTERNAL_SERVER_ERROR, ErrorCodes.INTERNAL_SERVER_ERROR);
+    const err = new AppError(
+      "Internal",
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      ErrorCodes.INTERNAL_SERVER_ERROR,
+    );
     expect(err.isClientSafe).toBe(false);
   });
 
   it("stores structured details", () => {
-    const err = new AppError("Validation failed", StatusCodes.BAD_REQUEST, ErrorCodes.VALIDATION_FAILED, {
-      details: { fields: { email: "Invalid email" } },
-    });
+    const err = new AppError(
+      "Validation failed",
+      StatusCodes.BAD_REQUEST,
+      ErrorCodes.VALIDATION_FAILED,
+      {
+        details: { fields: { email: "Invalid email" } },
+      },
+    );
     expect(err.details).toEqual({ fields: { email: "Invalid email" } });
   });
 

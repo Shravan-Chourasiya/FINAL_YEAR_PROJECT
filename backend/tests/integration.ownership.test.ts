@@ -50,7 +50,9 @@ beforeAll(async () => {
   request = supertest(app);
 }, 120_000);
 
-afterAll(async () => { await teardown(); });
+afterAll(async () => {
+  await teardown();
+});
 beforeEach(async () => {
   await resetDb();
   await resetRedis();
@@ -59,13 +61,16 @@ beforeEach(async () => {
 async function seedUser(suffix = randomUUID()) {
   const { db } = getContainers();
   const hash = await bcrypt.hash("Password1", 1);
-  const [user] = await db.insert(usersTable).values({
-    email: `user-${suffix}@example.com`,
-    password: hash,
-    username: `user_${suffix.slice(0, 8)}`,
-    isVerified: true,
-    accountStatus: "active",
-  }).returning({ id: usersTable.id, email: usersTable.email });
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      email: `user-${suffix}@example.com`,
+      password: hash,
+      username: `user_${suffix.slice(0, 8)}`,
+      isVerified: true,
+      accountStatus: "active",
+    })
+    .returning({ id: usersTable.id, email: usersTable.email });
   return user!;
 }
 
@@ -77,19 +82,29 @@ async function loginUser(email: string) {
     .send({ email, password: "Password1", deviceType: "desktop" });
 
   const cookies = res.headers["set-cookie"] as string[] | undefined;
-  const accessToken = cookies?.find((c) => c.startsWith("access_token="))?.split(";")[0]?.split("=")[1];
-  const csrfToken = cookies?.find((c) => c.startsWith("csrf_token="))?.split(";")[0]?.split("=")[1] ?? CSRF;
+  const accessToken = cookies
+    ?.find((c) => c.startsWith("access_token="))
+    ?.split(";")[0]
+    ?.split("=")[1];
+  const csrfToken =
+    cookies
+      ?.find((c) => c.startsWith("csrf_token="))
+      ?.split(";")[0]
+      ?.split("=")[1] ?? CSRF;
   return { accessToken, csrfToken };
 }
 
 async function seedInterview(userId: string) {
   const { db } = getContainers();
-  const [interview] = await db.insert(interviewsTable).values({
-    userId,
-    interviewTitle: "Test Interview",
-    interviewMetaData: { jobRole: "Engineer", interviewType: "MIXED" },
-    interviewDuration: 30,
-  }).returning({ id: interviewsTable.id });
+  const [interview] = await db
+    .insert(interviewsTable)
+    .values({
+      userId,
+      interviewTitle: "Test Interview",
+      interviewMetaData: { jobRole: "Engineer", interviewType: "MIXED" },
+      interviewDuration: 30,
+    })
+    .returning({ id: interviewsTable.id });
   return interview!;
 }
 
@@ -159,7 +174,8 @@ describe("Interview ownership", () => {
     const interview = await seedInterview(owner.id);
 
     // Mark as COMPLETED so metrics endpoint doesn't throw INTERVIEW_INVALID_STATE
-    await db.update(interviewsTable)
+    await db
+      .update(interviewsTable)
       .set({ interviewStatus: "COMPLETED" })
       .where(({ id }) => id === interview.id);
 
