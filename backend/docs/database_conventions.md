@@ -174,11 +174,11 @@ boundary (query result mapping / ORM column mapping) — it is not
 re-invented per controller.
 
 | Database (`db/`, SQL) | TypeScript (`types/`, `services/`, `controllers/`) |
-|---|---|
-| `user_id`             | `userId`                                            |
-| `created_at`          | `createdAt`                                         |
-| `updated_at`          | `updatedAt`                                         |
-| `disabled_at`         | `disabledAt`                                        |
+| --------------------- | -------------------------------------------------- |
+| `user_id`             | `userId`                                           |
+| `created_at`          | `createdAt`                                        |
+| `updated_at`          | `updatedAt`                                        |
+| `disabled_at`         | `disabledAt`                                       |
 
 Keep the two naming worlds clearly separated: SQL/migration files never use
 camelCase, and TypeScript types/interfaces never use snake_case field
@@ -299,7 +299,7 @@ scheduled_deletion_at   TIMESTAMPTZ
 - Once `scheduled_deletion_at` has passed, a cleanup process performs the
   actual hard delete of the row (and any associated data whose lifecycle
   is tied to the account), then the row is gone — `account_status =
-  'deleted'` is not a long-lived resting state, it's only relevant
+'deleted'` is not a long-lived resting state, it's only relevant
   transiently if deletion is processed asynchronously rather than
   in-line.
 
@@ -340,4 +340,4 @@ a schema-wide soft-delete system.
   dedicated 30-day disable → recover → hard-delete lifecycle for `users`
   only. Superseded the earlier `repositories/` architecture plan in favor
   of the current `controllers/ schemas/ routes/ modules/ middlewares/
-  config/ db/ services/ utils/ types/` structure.
+config/ db/ services/ utils/ types/` structure.

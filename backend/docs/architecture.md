@@ -45,6 +45,7 @@ validation wiring, controllers, and any orchestration logic that is specific
 to that capability and not reusable elsewhere.
 
 ### 2.1 `modules/auth`
+
 Owns: registration, login/logout, session/token issuance and refresh,
 password reset, account verification.
 Contains: `auth.routes.ts`, `auth.controller.ts`, module-local orchestration
@@ -56,6 +57,7 @@ modules (interview, admin) need to read "who is the current user" without
 importing from `modules/auth`.
 
 ### 2.2 `modules/interview`
+
 Owns: interview session lifecycle (create, start, progress through
 questions, submit answers, end), real-time orchestration of a session,
 and coding-question submissions.
@@ -67,6 +69,7 @@ Consumes: `integrations/ai` (generate/evaluate questions),
 This is the only module allowed to call `integrations/codebox`.
 
 ### 2.3 `modules/analytics`
+
 Owns: aggregating interview results into reports and dashboards, scoring
 trends, candidate/recruiter-facing summaries.
 Contains: `analytics.routes.ts`, `analytics.controller.ts`, report-shaping
@@ -78,16 +81,19 @@ Does **not** recompute or re-derive raw interview data — it reads what
 `modules/interview` has already persisted through `shared/repositories`.
 
 ### 2.4 `modules/admin`
+
 Owns: user/account management, moderation, module configuration/feature
 flags, an operator's view over analytics.
 Contains: `admin.routes.ts`, `admin.controller.ts`.
-Consumes: `shared/services` only. Admin is a *consumer* of what auth,
+Consumes: `shared/services` only. Admin is a _consumer_ of what auth,
 interview, and analytics expose through shared services — it never imports
 directly from another module's folder (see Rule 3.1).
 
 ### 2.5 What stays shared instead of living in a module
+
 Anything needed by **two or more** modules moves to `shared/` immediately,
 even if only one module currently uses it. In practice this means:
+
 - User identity/session lookup (needed by interview, analytics, admin)
 - Data persistence for users, sessions, interview results
 - Input validation schemas that appear in more than one module's routes
@@ -97,12 +103,14 @@ even if only one module currently uses it. In practice this means:
 ## 3. Cross-module rules
 
 ### Rule 3.1 — No module imports another module
+
 `modules/admin` must never `import ... from "../interview/..."` (or any
 other module). If admin needs interview data, it goes through a
 `shared/services` function that both modules call. This is what keeps
 modules independently deletable/replaceable.
 
 ### Rule 3.2 — Integrations are one-directional
+
 `integrations/ai` and `integrations/codebox` are consumed **by** modules.
 They never import from `modules/*` or `shared/*` (other than shared
 `types`/`validators` for the shape of their own input/output). An
@@ -113,13 +121,14 @@ Allowed: `modules/interview → integrations/ai`
 Forbidden: `integrations/ai → modules/interview`
 
 ### Rule 3.3 — Only the owning module calls its integration
+
 - `integrations/codebox` is called only from `modules/interview`.
 - `integrations/ai` may be called from `modules/interview` and
   `modules/analytics`.
-If a third module later needs an integration, that need should be pushed
-into a `shared/services` wrapper rather than letting every module reach
-into the integration directly — revisit this rule at that point rather
-than quietly bypassing it.
+  If a third module later needs an integration, that need should be pushed
+  into a `shared/services` wrapper rather than letting every module reach
+  into the integration directly — revisit this rule at that point rather
+  than quietly bypassing it.
 
 ---
 
@@ -167,21 +176,21 @@ business logic. Controllers never call repositories directly.
 
 ## 5. Folder-to-responsibility map (must stay in sync with `src/`)
 
-| Folder | Responsibility | Depends on |
-|---|---|---|
-| `modules/auth` | registration, login, sessions, password reset | `shared/services` |
-| `modules/interview` | interview session lifecycle, real-time orchestration | `shared/services`, `integrations/ai`, `integrations/codebox` |
-| `modules/analytics` | reporting/dashboards over past interviews | `shared/services`, `integrations/ai` (optional) |
-| `modules/admin` | user/account management, moderation, config | `shared/services` |
-| `integrations/ai` | client for AI question-gen/evaluation provider(s) | `shared/validators`/`models` only |
-| `integrations/codebox` | client for sandboxed code execution | `shared/validators`/`models` only |
-| `shared/services` | business logic, cross-module operations | `shared/repositories`, `shared/validators` |
-| `shared/repositories` | data access (DB) | `shared/validators`, `shared/models` |
-| `shared/validators` | Zod schemas | nothing internal |
-| `shared/models` | shared types / DB schema | nothing internal |
-| `shared/middleware` | Express middleware reused across modules (e.g. auth guard) | `shared/services` |
-| `config` | env parsing, app configuration | nothing internal |
-| `utils` | generic stateless helpers (logging, formatting) | nothing internal |
+| Folder                 | Responsibility                                             | Depends on                                                   |
+| ---------------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `modules/auth`         | registration, login, sessions, password reset              | `shared/services`                                            |
+| `modules/interview`    | interview session lifecycle, real-time orchestration       | `shared/services`, `integrations/ai`, `integrations/codebox` |
+| `modules/analytics`    | reporting/dashboards over past interviews                  | `shared/services`, `integrations/ai` (optional)              |
+| `modules/admin`        | user/account management, moderation, config                | `shared/services`                                            |
+| `integrations/ai`      | client for AI question-gen/evaluation provider(s)          | `shared/validators`/`models` only                            |
+| `integrations/codebox` | client for sandboxed code execution                        | `shared/validators`/`models` only                            |
+| `shared/services`      | business logic, cross-module operations                    | `shared/repositories`, `shared/validators`                   |
+| `shared/repositories`  | data access (DB)                                           | `shared/validators`, `shared/models`                         |
+| `shared/validators`    | Zod schemas                                                | nothing internal                                             |
+| `shared/models`        | shared types / DB schema                                   | nothing internal                                             |
+| `shared/middleware`    | Express middleware reused across modules (e.g. auth guard) | `shared/services`                                            |
+| `config`               | env parsing, app configuration                             | nothing internal                                             |
+| `utils`                | generic stateless helpers (logging, formatting)            | nothing internal                                             |
 
 Any new top-level folder under `src/` requires a new row here before it is
 used.

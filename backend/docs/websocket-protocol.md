@@ -30,7 +30,9 @@ Every payload in both directions carries:
 Errors are **always** emitted on the dedicated `ws:error` event name — never mixed into the normal event stream. The client can distinguish a failure from a state update with a single event-name check.
 
 ```ts
-socket.on("ws:error", (err) => { /* err.code, err.message, err.interviewId? */ });
+socket.on("ws:error", (err) => {
+  /* err.code, err.message, err.interviewId? */
+});
 ```
 
 See §4 for the full error shape and all error codes.
@@ -45,11 +47,11 @@ See §4 for the full error shape and all error codes.
 import { io } from "socket.io-client";
 
 const socket = io("https://api.syntheview.ai", {
-  withCredentials: true,   // required — sends the access_token cookie
-  reconnection:    true,
-  reconnectionDelay:      1000,
-  reconnectionDelayMax:   5000,
-  reconnectionAttempts:   10,
+  withCredentials: true, // required — sends the access_token cookie
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: 10,
 });
 ```
 
@@ -65,10 +67,10 @@ No separate token or query-string parameter is needed or accepted.
 
 Socket.IO's built-in transport-level ping/pong runs automatically:
 
-| Parameter     | Value  |
-|---------------|--------|
-| pingInterval  | 25 s   |
-| pingTimeout   | 20 s   |
+| Parameter    | Value |
+| ------------ | ----- |
+| pingInterval | 25 s  |
+| pingTimeout  | 20 s  |
 
 In addition, the server emits an **application-level** `heartbeat:ping` event. The client **must** respond with `heartbeat:ack` within the ping timeout or the connection is considered dead.
 
@@ -196,28 +198,28 @@ All errors are emitted on `ws:error`. **Never** branch on `message` — it is fo
 }
 ```
 
-| Field         | Type   | Notes                                              |
-|---------------|--------|----------------------------------------------------|
-| `eventVersion`| number | Protocol version                                   |
-| `event`       | string | Always `"ws:error"`                                |
-| `code`        | string | Machine-readable — see table below                 |
-| `message`     | string | Human-readable — do not branch on this             |
-| `interviewId` | string | Present when the error is scoped to an interview   |
-| `timestamp`   | string | ISO-8601                                           |
+| Field          | Type   | Notes                                            |
+| -------------- | ------ | ------------------------------------------------ |
+| `eventVersion` | number | Protocol version                                 |
+| `event`        | string | Always `"ws:error"`                              |
+| `code`         | string | Machine-readable — see table below               |
+| `message`      | string | Human-readable — do not branch on this           |
+| `interviewId`  | string | Present when the error is scoped to an interview |
+| `timestamp`    | string | ISO-8601                                         |
 
 ### Error codes
 
-| Code                      | Meaning                                                    |
-|---------------------------|------------------------------------------------------------|
-| `AUTH_UNAUTHORIZED`       | No valid access token in the handshake                     |
-| `AUTH_SESSION_EXPIRED`    | Token is expired or blacklisted                            |
-| `AUTH_FORBIDDEN`          | Authenticated but does not own the requested interview     |
-| `INTERVIEW_NOT_FOUND`     | No interview with the given ID exists                      |
-| `INTERVIEW_INVALID_STATE` | Interview is not in the required state for this action     |
-| `QUESTION_NOT_FOUND`      | The referenced question does not exist                     |
-| `ANSWER_REJECTED`         | Answer failed validation (e.g. wrong question state)       |
-| `CONTEXT_MISSING`         | Redis session context not found — interview not started    |
-| `INTERNAL_ERROR`          | Unexpected server error                                    |
+| Code                      | Meaning                                                 |
+| ------------------------- | ------------------------------------------------------- |
+| `AUTH_UNAUTHORIZED`       | No valid access token in the handshake                  |
+| `AUTH_SESSION_EXPIRED`    | Token is expired or blacklisted                         |
+| `AUTH_FORBIDDEN`          | Authenticated but does not own the requested interview  |
+| `INTERVIEW_NOT_FOUND`     | No interview with the given ID exists                   |
+| `INTERVIEW_INVALID_STATE` | Interview is not in the required state for this action  |
+| `QUESTION_NOT_FOUND`      | The referenced question does not exist                  |
+| `ANSWER_REJECTED`         | Answer failed validation (e.g. wrong question state)    |
+| `CONTEXT_MISSING`         | Redis session context not found — interview not started |
+| `INTERNAL_ERROR`          | Unexpected server error                                 |
 
 ---
 
@@ -278,11 +280,11 @@ Emitted while the AI engine is working. Use this to show a progress indicator.
 }
 ```
 
-| `stage`       | Meaning                                          |
-|---------------|--------------------------------------------------|
-| `thinking`    | AI received the request, deciding what to ask    |
-| `generating`  | AI is writing the question / follow-up           |
-| `evaluating`  | AI is scoring a submitted answer                 |
+| `stage`      | Meaning                                       |
+| ------------ | --------------------------------------------- |
+| `thinking`   | AI received the request, deciding what to ask |
+| `generating` | AI is writing the question / follow-up        |
+| `evaluating` | AI is scoring a submitted answer              |
 
 ---
 
@@ -303,11 +305,11 @@ Emitted while the AI engine is working. Use this to show a progress indicator.
 }
 ```
 
-| `answerType` | `answerData` content                        |
-|--------------|---------------------------------------------|
-| `TEXT`       | Plain transcript string                     |
-| `AUDIO`      | URL to uploaded audio file                  |
-| `VIDEO`      | URL to uploaded video file                  |
+| `answerType` | `answerData` content       |
+| ------------ | -------------------------- |
+| `TEXT`       | Plain transcript string    |
+| `AUDIO`      | URL to uploaded audio file |
+| `VIDEO`      | URL to uploaded video file |
 
 - Submitting an **empty** `answerData` (after trimming) marks the question as `SKIPPED`.
 - On success the server begins evaluation and emits `ai:status { stage: "evaluating" }` followed by `evaluation:feedback` when scoring is complete.
@@ -404,7 +406,7 @@ The client should show the termination screen on either event — whichever arri
 ### Client → Server
 
 | Event name         | When to emit                                      |
-|--------------------|---------------------------------------------------|
+| ------------------ | ------------------------------------------------- |
 | `interview:join`   | After connecting, to bind to an interview room    |
 | `interview:leave`  | When navigating away from the interview UI        |
 | `interview:cancel` | Candidate voluntarily ends the session            |
@@ -415,17 +417,17 @@ The client should show the termination screen on either event — whichever arri
 
 ### Server → Client
 
-| Event name               | When emitted                                                  |
-|--------------------------|---------------------------------------------------------------|
-| `interview:joined`       | Successful `interview:join` (includes timer anchor)           |
-| `interview:left`         | Successful `interview:leave`                                  |
-| `interview:state_change` | Any interview status transition                               |
-| `question:delivered`     | AI has generated the next question                            |
-| `ai:status`              | AI engine stage change (thinking / generating / evaluating)   |
-| `evaluation:feedback`    | AI has finished scoring an answer                             |
-| `timer:expired`          | Wall-clock duration exceeded                                  |
-| `heartbeat:ping`         | Application-level liveness check (client must ack)            |
-| `ws:error`               | Any server-side error — always on this dedicated event name   |
+| Event name               | When emitted                                                |
+| ------------------------ | ----------------------------------------------------------- |
+| `interview:joined`       | Successful `interview:join` (includes timer anchor)         |
+| `interview:left`         | Successful `interview:leave`                                |
+| `interview:state_change` | Any interview status transition                             |
+| `question:delivered`     | AI has generated the next question                          |
+| `ai:status`              | AI engine stage change (thinking / generating / evaluating) |
+| `evaluation:feedback`    | AI has finished scoring an answer                           |
+| `timer:expired`          | Wall-clock duration exceeded                                |
+| `heartbeat:ping`         | Application-level liveness check (client must ack)          |
+| `ws:error`               | Any server-side error — always on this dedicated event name |
 
 ---
 
