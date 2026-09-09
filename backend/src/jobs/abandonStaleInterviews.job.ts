@@ -21,7 +21,9 @@ export function startAbandonStaleInterviewsJob(): NodeJS.Timeout {
       // 2. Overall interview duration — transition overdue INPROGRESS interviews to TIMED_OUT
       const { timedOut: interviewsTimedOut } = await detectAndTimeoutOverdueInterviews();
       if (interviewsTimedOut > 0) {
-        logger.info(`[job] interviewMaintenance: timed out ${interviewsTimedOut} interview(s) by duration`);
+        logger.info(
+          `[job] interviewMaintenance: timed out ${interviewsTimedOut} interview(s) by duration`,
+        );
       }
 
       // 3. Stale abandonment — mark long-inactive INPROGRESS interviews as ABANDONED

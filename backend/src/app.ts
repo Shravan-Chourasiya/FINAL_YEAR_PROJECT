@@ -43,7 +43,6 @@ app.use(`/${env.API_VERSION}/`, InterviewRoutes);
 
 startAbandonStaleInterviewsJob();
 
-
 //****************************************** Health Check Endpoints ******************************************//
 app.get("/health", (_req, res) => {
   res.status(StatusCodes.OK).json({ status: "OK" });
