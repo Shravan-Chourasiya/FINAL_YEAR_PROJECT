@@ -1,37 +1,73 @@
 import { eq, and, desc, lt, inArray, notInArray } from "drizzle-orm";
-import { randomUUID } from "crypto";
 import getPgDb from "../../../db/postgres.init.js";
-import { interviewsTable, interviewStatusEnum } from "../schemas/interview.schema.js";
+import type { interviewStatusEnum } from "../schemas/interview.schema.js";
+import { interviewsTable } from "../schemas/interview.schema.js";
 import { interviewAnswersTable } from "../schemas/answers.schema.js";
 import { interviewQuestionsTable } from "../schemas/question.schema.js";
 import type { AuthenticatedRequest } from "../../../types/request.js";
 import { AppError } from "../../../utils/appError.js";
 import { ErrorCodes } from "../../../constants/errorCodes.js";
-import { ABANDONMENT_THRESHOLD_MS, QUESTION_TIMEOUT_MS } from "../../../constants/interview.constants.js";
+import {
+  ABANDONMENT_THRESHOLD_MS,
+  QUESTION_TIMEOUT_MS,
+} from "../../../constants/interview.constants.js";
 import { StatusCodes } from "http-status-codes";
-import { writeInterviewContext, deleteInterviewContext } from "./interview.context.service.js";
+import {
+  writeInterviewContext,
+  readInterviewContext,
+  deleteInterviewContext,
+} from "./interview.context.service.js";
 import type { InterviewContext } from "../types/interview.context.js";
+import {
+  generateNextQuestion,
+  startAiSession,
+  endAiSession,
+  evaluateAnswer,
+} from "../../../integrations/ai/index.js";
+import {
+  consumeLookahead,
+  writeLookahead,
+  discardLookahead,
+} from "../../../integrations/ai/lookahead.cache.js";
+import {
+  initialPerformanceState,
+  updatePerformanceState,
+  updateSkipCount,
+  updateTimeoutCount,
+  detectPatterns,
+  computeAdaptation,
+} from "../../../integrations/ai/adaptive/index.js";
+import type { AdaptationDecision } from "../../../integrations/ai/adaptive/index.js";
+import type { IoServer } from "../../../websocket/socket.types.js";
+import { EVENT_VERSION } from "../../../websocket/socket.types.js";
+import { logger } from "../../../utils/logger.js";
 
 // ── State machine ─────────────────────────────────────────────────────────────
 
 type InterviewStatus = (typeof interviewStatusEnum.enumValues)[number];
 
 // Terminal states — no transitions allowed out of these
-const TERMINAL_STATUSES: InterviewStatus[] = ["COMPLETED", "CANCELLED", "ABANDONED", "EXPIRED", "TIMED_OUT"];
+const TERMINAL_STATUSES: InterviewStatus[] = [
+  "COMPLETED",
+  "CANCELLED",
+  "ABANDONED",
+  "EXPIRED",
+  "TIMED_OUT",
+];
 
 // Resumable = paused by the user (SCHEDULED), not dead
 const RESUMABLE_STATUSES: InterviewStatus[] = ["SCHEDULED"];
 
 const VALID_TRANSITIONS: Record<InterviewStatus, InterviewStatus[]> = {
-  DRAFT:      ["READY"],
-  READY:      ["INPROGRESS", "SCHEDULED", "CANCELLED"],
-  SCHEDULED:  ["INPROGRESS", "CANCELLED"],
+  DRAFT: ["READY"],
+  READY: ["INPROGRESS", "SCHEDULED", "CANCELLED"],
+  SCHEDULED: ["INPROGRESS", "CANCELLED"],
   INPROGRESS: ["SCHEDULED", "COMPLETED", "CANCELLED", "ABANDONED", "TIMED_OUT"],
-  COMPLETED:  [],
-  CANCELLED:  [],
-  ABANDONED:  [],
-  EXPIRED:    [],
-  TIMED_OUT:  [],
+  COMPLETED: [],
+  CANCELLED: [],
+  ABANDONED: [],
+  EXPIRED: [],
+  TIMED_OUT: [],
 };
 
 function assertValidTransition(current: InterviewStatus, next: InterviewStatus): void {
@@ -49,10 +85,7 @@ function assertValidTransition(current: InterviewStatus, next: InterviewStatus):
 
 export async function fetchInterviewById(id: string) {
   const db = getPgDb();
-  const [interview] = await db
-    .select()
-    .from(interviewsTable)
-    .where(eq(interviewsTable.id, id));
+  const [interview] = await db.select().from(interviewsTable).where(eq(interviewsTable.id, id));
   return interview;
 }
 
@@ -61,12 +94,21 @@ export async function fetchInterviewById(id: string) {
 async function resolveInterview(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await fetchInterviewById(interviewId);
   if (!interview || interview.userId !== authreq.auth.userId) {
-    throw new AppError("Interview not found", StatusCodes.NOT_FOUND, ErrorCodes.INTERVIEW_NOT_FOUND, { isOperational: true });
+    throw new AppError(
+      "Interview not found",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.INTERVIEW_NOT_FOUND,
+      { isOperational: true },
+    );
   }
   return interview;
 }
 
-async function transitionInterview(interviewId: string, from: InterviewStatus, to: InterviewStatus) {
+async function transitionInterview(
+  interviewId: string,
+  from: InterviewStatus,
+  to: InterviewStatus,
+) {
   assertValidTransition(from, to);
   const db = getPgDb();
   const [updated] = await db
@@ -128,10 +170,7 @@ export async function createInterviewService(
 
 export async function getAllInterviewsService(authreq: AuthenticatedRequest) {
   const db = getPgDb();
-  return db
-    .select()
-    .from(interviewsTable)
-    .where(eq(interviewsTable.userId, authreq.auth.userId));
+  return db.select().from(interviewsTable).where(eq(interviewsTable.userId, authreq.auth.userId));
 }
 
 export async function getInterviewByIdService(authreq: AuthenticatedRequest, interviewId: string) {
@@ -140,10 +179,17 @@ export async function getInterviewByIdService(authreq: AuthenticatedRequest, int
   const [interview] = await db
     .select()
     .from(interviewsTable)
-    .where(and(eq(interviewsTable.id, interviewId), eq(interviewsTable.userId, authreq.auth.userId)));
+    .where(
+      and(eq(interviewsTable.id, interviewId), eq(interviewsTable.userId, authreq.auth.userId)),
+    );
 
   if (!interview) {
-    throw new AppError("Interview not found", StatusCodes.NOT_FOUND, ErrorCodes.INTERVIEW_NOT_FOUND, { isOperational: true });
+    throw new AppError(
+      "Interview not found",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.INTERVIEW_NOT_FOUND,
+      { isOperational: true },
+    );
   }
 
   return interview;
@@ -165,65 +211,292 @@ export async function getResumableInterviewsService(authreq: AuthenticatedReques
 
 export async function startInterviewService(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await resolveInterview(authreq, interviewId);
-  assertValidTransition(interview.interviewStatus as InterviewStatus, "INPROGRESS");
+  assertValidTransition(interview.interviewStatus, "INPROGRESS");
 
   const now = new Date();
-  const meta = interview.interviewMetaData as { jobRole?: string; jobSkills?: string[]; maxFollowUps?: number };
+  const meta = interview.interviewMetaData;
 
   // ── Step 1: Build the session context ────────────────────────────────────
-  const context: InterviewContext = {
+  let context: InterviewContext = {
     interviewId,
     candidateIdentity: {
-      userId:     authreq.auth.userId,
+      userId: authreq.auth.userId,
       experience: (meta as { experience?: string }).experience ?? "unknown",
     },
     config: {
-      interviewType:   interview.interviewType,
-      interviewStyle:  interview.interviewCompanyStyle,
-      difficulty:      interview.interviewDifficulty,
+      interviewType: interview.interviewType,
+      interviewStyle: interview.interviewCompanyStyle,
+      difficulty: interview.interviewDifficulty,
       durationMinutes: interview.interviewDuration,
-      maxFollowUps:    meta.maxFollowUps ?? 3,
-      ...(meta.jobRole              ? { jobRole:    meta.jobRole    } : {}),
-      ...(meta.jobSkills?.length    ? { jobSkills:  meta.jobSkills  } : {}),
+      maxFollowUps: meta.maxFollowUps ?? 3,
+      ...(meta.jobRole ? { jobRole: meta.jobRole } : {}),
+      ...(meta.jobSkills?.length ? { jobSkills: meta.jobSkills } : {}),
     },
     questionState: {
-      currentIndex:   0,
+      currentIndex: 0,
       totalQuestions: null,
+      currentQuestionId: null,
     },
     timerStartedAt: now.toISOString(),
-    // ── Step 2: AI context stub (replaced by LangGraph handshake in Step 10) ─
-    aiContext: {
-      stub:     true,
-      threadId: `stub-${randomUUID()}`,
-    },
+    aiContext: { threadId: "" },
+    performanceState: initialPerformanceState(interview.interviewDifficulty),
+    adaptationHistory: [],
   };
 
   // ── Step 3: Persist context to Redis (atomic gate — DB untouched until this succeeds) ──
   await writeInterviewContext(context, interview.interviewDuration);
 
   // ── Step 4: Transition DB status — rollback Redis on failure ─────────────
+  let updated;
   try {
     const db = getPgDb();
-    const [updated] = await db
+    [updated] = await db
       .update(interviewsTable)
       .set({ interviewStatus: "INPROGRESS", lastActivityAt: now, interviewStartedAt: now })
       .where(eq(interviewsTable.id, interviewId))
       .returning();
-    return { interview: updated, context };
   } catch (err) {
     await deleteInterviewContext(interviewId);
     throw err;
+  }
+
+  // ── Step 5: Start AI session + generate first question (immediate-start only) ──
+  // Scheduled interviews skip both: the AI session is initialised when the
+  // candidate actually joins, not at scheduling time.
+  if (!interview.isInterviewScheduled) {
+    try {
+      const { threadId } = await startAiSession({
+        interviewId,
+        config: context.config,
+        candidateExperience: context.candidateIdentity.experience,
+      });
+      const contextWithThread: InterviewContext = { ...context, aiContext: { threadId } };
+      await writeInterviewContext(contextWithThread, interview.interviewDuration);
+      context = contextWithThread;
+    } catch (err) {
+      logger.warn(
+        { err, interviewId },
+        "[ai] startAiSession failed — continuing with empty threadId",
+      );
+    }
+
+    try {
+      await generateAndDeliverQuestionService(interviewId, null);
+    } catch (err) {
+      void err;
+    }
+  }
+
+  return { interview: updated, context };
+}
+
+// ── Generate and deliver the first (or next) question ─────────────────────────
+// Idempotent: if context already has a currentQuestionId, the question was
+// already generated and delivered — return it without generating a new one.
+// io is optional so this can be called from HTTP context (start) where the
+// socket hasn't joined yet; in that case the client gets the question on join.
+export async function generateAndDeliverQuestionService(
+  interviewId: string,
+  io: IoServer | null,
+): Promise<void> {
+  let context = await readInterviewContext(interviewId);
+  if (!context) {
+    throw new AppError(
+      "Interview context not found",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.INTERVIEW_NOT_FOUND,
+      { isOperational: true },
+    );
+  }
+
+  // ── Idempotency guard ─────────────────────────────────────────────────────
+  if (context.questionState.currentQuestionId !== null) {
+    if (io) await redeliverCurrentQuestion(context, io);
+    return;
+  }
+
+  // ── Lazy AI session init for scheduled interviews ───────────────────────────
+  // Scheduled interviews skip startAiSession at start time; the threadId is
+  // empty until the candidate actually joins. Initialise it now, once.
+  if (!context.aiContext.threadId) {
+    try {
+      const { threadId } = await startAiSession({
+        interviewId,
+        config: context.config,
+        candidateExperience: context.candidateIdentity.experience,
+      });
+      context = { ...context, aiContext: { threadId } };
+      await writeInterviewContext(context, context.config.durationMinutes);
+    } catch (err) {
+      logger.warn(
+        { err, interviewId },
+        "[ai] lazy startAiSession failed — continuing with empty threadId",
+      );
+    }
+  }
+
+  const db = getPgDb();
+  const sequenceNumber = context.questionState.currentIndex + 1;
+
+  // ── Consume lookahead cache (populated by the previous answer submission) ─
+  let generated = await consumeLookahead(interviewId);
+
+  if (generated) {
+    logger.info({ interviewId, sequenceNumber }, "[ai] lookahead cache hit");
+  } else {
+    // ── Cache miss — fetch previous questions and generate synchronously ────
+    const previous = await db
+      .select({
+        questionTitle: interviewQuestionsTable.questionTitle,
+        questionType: interviewQuestionsTable.questionType,
+        questionState: interviewQuestionsTable.questionState,
+      })
+      .from(interviewQuestionsTable)
+      .where(eq(interviewQuestionsTable.interviewId, interviewId));
+
+    logger.info(
+      { interviewId, sequenceNumber },
+      "[ai] lookahead cache miss — generating synchronously",
+    );
+    const result = await generateNextQuestion({
+      interviewId,
+      threadId: context.aiContext.threadId,
+      sequenceNumber,
+      previousQuestions: previous.map((q) => ({
+        questionTitle: q.questionTitle,
+        questionType: q.questionType,
+        wasAnswered: q.questionState === "ANSWERED" || q.questionState === "EVALUATED",
+      })),
+    });
+    generated = result.question;
+  }
+
+  // ── Persist question row ──────────────────────────────────────────────────
+  const [question] = await db
+    .insert(interviewQuestionsTable)
+    .values({
+      interviewId,
+      sequenceNumber,
+      questionTitle: generated.questionTitle,
+      questionDescription: generated.questionDescription ?? undefined,
+      questionType: generated.questionType,
+      questionState: "PENDING",
+    })
+    .returning();
+
+  // ── Update context with new currentQuestionId ─────────────────────────────
+  const updatedContext: InterviewContext = {
+    ...context,
+    questionState: {
+      ...context.questionState,
+      currentQuestionId: question!.id,
+    },
+  };
+  await writeInterviewContext(updatedContext, context.config.durationMinutes);
+
+  // ── Deliver over socket if io is available ────────────────────────────────
+  if (io) {
+    const INTERVIEW_ROOM = `interview:${interviewId}`;
+    io.to(INTERVIEW_ROOM).emit("question:delivered", {
+      eventVersion: EVENT_VERSION,
+      event: "question:delivered",
+      interviewId,
+      questionId: question!.id,
+      sequenceNumber,
+      totalQuestions: context.questionState.totalQuestions,
+      questionTitle: generated.questionTitle,
+      ...(generated.questionDescription
+        ? { questionDescription: generated.questionDescription }
+        : {}),
+      questionType: generated.questionType,
+      deliveredAt: new Date().toISOString(),
+      timeoutSeconds: Math.floor(QUESTION_TIMEOUT_MS / 1000),
+    });
+  }
+}
+
+// Re-delivers the current question to the room (used on reconnect / idempotent re-request)
+async function redeliverCurrentQuestion(context: InterviewContext, io: IoServer): Promise<void> {
+  const { currentQuestionId } = context.questionState;
+  if (!currentQuestionId) return;
+
+  const db = getPgDb();
+  const [question] = await db
+    .select()
+    .from(interviewQuestionsTable)
+    .where(eq(interviewQuestionsTable.id, currentQuestionId))
+    .limit(1);
+
+  if (!question) return;
+
+  const INTERVIEW_ROOM = `interview:${context.interviewId}`;
+  io.to(INTERVIEW_ROOM).emit("question:delivered", {
+    eventVersion: EVENT_VERSION,
+    event: "question:delivered",
+    interviewId: context.interviewId,
+    questionId: question.id,
+    sequenceNumber: question.sequenceNumber,
+    totalQuestions: context.questionState.totalQuestions,
+    questionTitle: question.questionTitle,
+    ...(question.questionDescription ? { questionDescription: question.questionDescription } : {}),
+    questionType: question.questionType,
+    deliveredAt: new Date().toISOString(),
+    timeoutSeconds: Math.floor(QUESTION_TIMEOUT_MS / 1000),
+  });
+}
+
+// ── Lookahead helper ───────────────────────────────────────────────────────────────
+// Generates the next question in the background and stores it in the lookahead
+// cache. Called fire-and-forget after an answer is persisted. Errors are logged
+// but never propagated — a cache miss on the next question:next is handled
+// gracefully by falling back to synchronous generation.
+async function kickoffLookahead(
+  interviewId: string,
+  context: InterviewContext,
+  decision?: AdaptationDecision,
+): Promise<void> {
+  try {
+    const nextSequence = context.questionState.currentIndex + 2;
+    const db = getPgDb();
+    const previous = await db
+      .select({
+        questionTitle: interviewQuestionsTable.questionTitle,
+        questionType: interviewQuestionsTable.questionType,
+        questionState: interviewQuestionsTable.questionState,
+      })
+      .from(interviewQuestionsTable)
+      .where(eq(interviewQuestionsTable.interviewId, interviewId));
+
+    const result = await generateNextQuestion({
+      interviewId,
+      threadId: context.aiContext.threadId,
+      sequenceNumber: nextSequence,
+      previousQuestions: previous.map((q) => ({
+        questionTitle: q.questionTitle,
+        questionType: q.questionType,
+        wasAnswered: q.questionState === "ANSWERED" || q.questionState === "EVALUATED",
+      })),
+      ...(decision ? { adaptationHint: decision.hint } : {}),
+    });
+
+    await writeLookahead(interviewId, result.question);
+    logger.info({ interviewId, nextSequence }, "[ai] lookahead question cached");
+  } catch (err) {
+    logger.warn(
+      { err, interviewId },
+      "[ai] lookahead generation failed — will generate synchronously on next request",
+    );
   }
 }
 
 export async function pauseInterviewService(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await resolveInterview(authreq, interviewId);
-  return transitionInterview(interviewId, interview.interviewStatus as InterviewStatus, "SCHEDULED");
+  return transitionInterview(interviewId, interview.interviewStatus, "SCHEDULED");
 }
 
 export async function resumeInterviewService(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await resolveInterview(authreq, interviewId);
-  return transitionInterview(interviewId, interview.interviewStatus as InterviewStatus, "INPROGRESS");
+  return transitionInterview(interviewId, interview.interviewStatus, "INPROGRESS");
 }
 
 // ── Shared skip/timeout helper ────────────────────────────────────────────────
@@ -254,18 +527,48 @@ async function skipQuestionInternal(
     })
     .returning();
 
+  // Update performance state for skip/timeout — fire-and-forget
+  void (async () => {
+    try {
+      const ctx = await readInterviewContext(interviewId);
+      if (!ctx) return;
+      const updatedPerf =
+        state === "TIMED_OUT"
+          ? updateTimeoutCount(ctx.performanceState)
+          : updateSkipCount(ctx.performanceState);
+      await writeInterviewContext(
+        { ...ctx, performanceState: updatedPerf },
+        ctx.config.durationMinutes,
+      );
+    } catch (err) {
+      logger.warn(
+        { err, interviewId, questionId },
+        "[perf] failed to update performance state on skip/timeout",
+      );
+    }
+  })();
+
   return answer;
 }
 
 // ── Services ── (continued)
 export async function cancelInterviewService(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await resolveInterview(authreq, interviewId);
-  return transitionInterview(interviewId, interview.interviewStatus as InterviewStatus, "CANCELLED");
+  return transitionInterview(interviewId, interview.interviewStatus, "CANCELLED");
 }
 
 export async function endInterviewService(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await resolveInterview(authreq, interviewId);
-  return transitionInterview(interviewId, interview.interviewStatus as InterviewStatus, "COMPLETED");
+  return transitionInterview(interviewId, interview.interviewStatus, "COMPLETED");
+}
+
+// System-driven completion — called by the adaptive engine when it decides to
+// terminate early. No AuthenticatedRequest needed; ownership was already verified
+// at answer submission time.
+export async function endInterviewSystemService(interviewId: string) {
+  const interview = await fetchInterviewById(interviewId);
+  if (!interview) return null;
+  return transitionInterview(interviewId, interview.interviewStatus, "COMPLETED");
 }
 
 // System-driven abandonment — called by the stale detection job, not by users
@@ -273,7 +576,7 @@ export async function abandonInterviewService(interviewId: string) {
   const db = getPgDb();
   const interview = await fetchInterviewById(interviewId);
   if (!interview) return null;
-  assertValidTransition(interview.interviewStatus as InterviewStatus, "ABANDONED");
+  assertValidTransition(interview.interviewStatus, "ABANDONED");
   const [updated] = await db
     .update(interviewsTable)
     .set({ interviewStatus: "ABANDONED", lastActivityAt: new Date() })
@@ -302,17 +605,25 @@ export async function detectAndAbandonStaleInterviews() {
   await db
     .update(interviewsTable)
     .set({ interviewStatus: "ABANDONED" })
-    .where(inArray(interviewsTable.id, stale.map((r) => r.id)));
+    .where(
+      inArray(
+        interviewsTable.id,
+        stale.map((r) => r.id),
+      ),
+    );
 
   return { abandoned: stale.length };
 }
 
-export async function getInterviewHistoryService(authreq: AuthenticatedRequest, interviewId: string) {
+export async function getInterviewHistoryService(
+  authreq: AuthenticatedRequest,
+  interviewId: string,
+) {
   const db = getPgDb();
 
   const interview = await resolveInterview(authreq, interviewId);
 
-  if (!TERMINAL_STATUSES.includes(interview.interviewStatus as InterviewStatus)) {
+  if (!TERMINAL_STATUSES.includes(interview.interviewStatus)) {
     throw new AppError(
       "History is only available for finished interviews",
       StatusCodes.BAD_REQUEST,
@@ -323,19 +634,19 @@ export async function getInterviewHistoryService(authreq: AuthenticatedRequest, 
 
   const questions = await db
     .select({
-      questionId:       interviewQuestionsTable.id,
-      sequenceNumber:   interviewQuestionsTable.sequenceNumber,
-      questionTitle:    interviewQuestionsTable.questionTitle,
-      questionType:     interviewQuestionsTable.questionType,
-      questionState:    interviewQuestionsTable.questionState,
-      timedOutAt:       interviewQuestionsTable.timedOutAt,
-      timeoutBehavior:  interviewQuestionsTable.timeoutBehavior,
-      answerId:         interviewAnswersTable.id,
-      answerData:       interviewAnswersTable.answerData,
-      answerType:       interviewAnswersTable.answerType,
-      answerState:      interviewAnswersTable.answerState,
-      evaluationData:   interviewAnswersTable.evaluationData,
-      answeredAt:       interviewAnswersTable.answeredAt,
+      questionId: interviewQuestionsTable.id,
+      sequenceNumber: interviewQuestionsTable.sequenceNumber,
+      questionTitle: interviewQuestionsTable.questionTitle,
+      questionType: interviewQuestionsTable.questionType,
+      questionState: interviewQuestionsTable.questionState,
+      timedOutAt: interviewQuestionsTable.timedOutAt,
+      timeoutBehavior: interviewQuestionsTable.timeoutBehavior,
+      answerId: interviewAnswersTable.id,
+      answerData: interviewAnswersTable.answerData,
+      answerType: interviewAnswersTable.answerType,
+      answerState: interviewAnswersTable.answerState,
+      evaluationData: interviewAnswersTable.evaluationData,
+      answeredAt: interviewAnswersTable.answeredAt,
     })
     .from(interviewQuestionsTable)
     .leftJoin(
@@ -368,8 +679,36 @@ export async function submitAnswerService(
     );
   }
 
+  // ── Staleness guard — reject answers for non-current questions ────────────
+  const context = await readInterviewContext(interviewId);
+  if (!context) {
+    throw new AppError(
+      "Interview context not found",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.INTERVIEW_NOT_FOUND,
+      { isOperational: true },
+    );
+  }
+  if (context.questionState.currentQuestionId !== payload.questionId) {
+    throw new AppError(
+      "Answer rejected: not the current question",
+      StatusCodes.CONFLICT,
+      ErrorCodes.ANSWER_REJECTED,
+      { isOperational: true },
+    );
+  }
+
   const db = getPgDb();
   const now = new Date();
+
+  // ── Duplicate guard — one answer per question, ever ───────────────────────
+  const [existing] = await db
+    .select({ id: interviewAnswersTable.id })
+    .from(interviewAnswersTable)
+    .where(eq(interviewAnswersTable.questionId, payload.questionId))
+    .limit(1);
+  if (existing) return existing; // idempotent — return the already-persisted answer
+
   const isEmpty = payload.answerData.trim().length === 0;
 
   // Empty answer = treat as skipped
@@ -399,10 +738,139 @@ export async function submitAnswerService(
     })
     .returning();
 
+  // ── Evaluation pipeline ───────────────────────────────────────────────────
+  // Run async — errors are logged but never propagate to the caller so the
+  // answer submission HTTP/WS response is never blocked by AI latency.
+  void (async () => {
+    try {
+      // ── Step 1: Evaluate the answer ───────────────────────────────────────
+      const [question] = await db
+        .select({
+          questionTitle: interviewQuestionsTable.questionTitle,
+          questionType: interviewQuestionsTable.questionType,
+          sequenceNumber: interviewQuestionsTable.sequenceNumber,
+        })
+        .from(interviewQuestionsTable)
+        .where(eq(interviewQuestionsTable.id, payload.questionId))
+        .limit(1);
+
+      if (!question) return;
+
+      const evalResult = await evaluateAnswer({
+        interviewId,
+        threadId: context.aiContext.threadId,
+        questionId: payload.questionId,
+        answerId: answer!.id,
+        questionTitle: question.questionTitle,
+        answerData: payload.answerData,
+        answerType: payload.answerType,
+      });
+
+      // ── Step 2: Persist evaluation to answer row ──────────────────────────
+      await db
+        .update(interviewAnswersTable)
+        .set({
+          evaluationData: {
+            score: evalResult.score,
+            correctness: evalResult.correctness,
+            relevance: evalResult.relevance,
+            clarity: evalResult.clarity,
+            technicalDepth: evalResult.technicalDepth,
+            feedback: evalResult.feedback,
+            strengths: evalResult.strengths,
+            weaknesses: evalResult.weaknesses,
+          },
+          answerState: "EVALUATED",
+        })
+        .where(eq(interviewAnswersTable.id, answer!.id));
+
+      await db
+        .update(interviewQuestionsTable)
+        .set({ questionState: "EVALUATED" })
+        .where(eq(interviewQuestionsTable.id, payload.questionId));
+
+      // ── Step 3: Update performance state ─────────────────────────────────
+      const historyEntry = {
+        questionId: payload.questionId,
+        questionTitle: question.questionTitle,
+        questionType: question.questionType,
+        sequenceNumber: question.sequenceNumber,
+        wasAnswered: true,
+        score: evalResult.score,
+      };
+
+      const newPerfState = updatePerformanceState(
+        context.performanceState,
+        evalResult,
+        historyEntry,
+      );
+
+      // ── Step 4: Detect patterns + compute adaptation ──────────────────────
+      const allQuestions = await db
+        .select({
+          questionId: interviewQuestionsTable.id,
+          questionTitle: interviewQuestionsTable.questionTitle,
+          questionType: interviewQuestionsTable.questionType,
+          sequenceNumber: interviewQuestionsTable.sequenceNumber,
+          questionState: interviewQuestionsTable.questionState,
+        })
+        .from(interviewQuestionsTable)
+        .where(eq(interviewQuestionsTable.interviewId, interviewId));
+
+      const questionHistory = allQuestions.map((q) => ({
+        questionId: q.questionId,
+        questionTitle: q.questionTitle,
+        questionType: q.questionType,
+        sequenceNumber: q.sequenceNumber,
+        wasAnswered: q.questionState === "ANSWERED" || q.questionState === "EVALUATED",
+        score: q.questionId === payload.questionId ? evalResult.score : null,
+      }));
+
+      const detection = detectPatterns(newPerfState, questionHistory);
+      const decision = computeAdaptation(newPerfState, detection, context.config, questionHistory);
+
+      // ── Step 5: Persist updated context atomically ────────────────────────
+      const updatedPerfState = { ...newPerfState, currentDifficulty: decision.hint.difficulty };
+      const updatedContext: InterviewContext = {
+        ...context,
+        performanceState: updatedPerfState,
+        adaptationHistory: [...context.adaptationHistory, decision],
+      };
+      await writeInterviewContext(updatedContext, context.config.durationMinutes);
+
+      // ── Step 6: Handle terminate ──────────────────────────────────────────
+      if (decision.action === "terminate") {
+        logger.info(
+          { interviewId, reason: decision.reason },
+          "[adaptive] terminating interview early",
+        );
+        await endInterviewSystemService(interviewId);
+        return; // no lookahead needed
+      }
+
+      // ── Step 7: Discard stale lookahead on topic change ───────────────────
+      if (decision.action === "new_topic") {
+        await discardLookahead(interviewId);
+      }
+
+      // ── Step 8: Kick off lookahead for the next question ──────────────────
+      void kickoffLookahead(interviewId, updatedContext, decision);
+    } catch (err) {
+      logger.error(
+        { err, interviewId, questionId: payload.questionId },
+        "[eval] evaluation pipeline failed",
+      );
+      // Best-effort fallback: still kick off lookahead so the next question isn't blocked
+      void kickoffLookahead(interviewId, context);
+    }
+  })();
+
   return answer;
 }
 
-// Detects PENDING questions whose interview started > QUESTION_TIMEOUT_MS ago and marks them TIMED_OUT
+// ── detectAndTimeoutStaleQuestions ────────────────────────────────────────────
+// Finds PENDING questions belonging to INPROGRESS interviews that started
+// > QUESTION_TIMEOUT_MS ago and marks them TIMED_OUT.
 export async function detectAndTimeoutStaleQuestions() {
   const db = getPgDb();
   const now = new Date();
@@ -428,6 +896,18 @@ export async function detectAndTimeoutStaleQuestions() {
 
   for (const { questionId, interviewId } of stale) {
     await skipQuestionInternal(db, interviewId, questionId, now, "TIMED_OUT");
+
+    // Advance context so the next question:next generates fresh
+    const ctx = await readInterviewContext(interviewId);
+    if (ctx && ctx.questionState.currentQuestionId === questionId) {
+      await writeInterviewContext(
+        {
+          ...ctx,
+          questionState: { ...ctx.questionState, currentQuestionId: null },
+        },
+        ctx.config.durationMinutes,
+      );
+    }
   }
 
   return { timedOut: stale.length };
@@ -440,13 +920,13 @@ export async function detectAndTimeoutOverdueInterviews() {
 
   // interviewDuration is stored in minutes; find interviews where startedAt + duration < now
   const overdue = await db
-    .select({ id: interviewsTable.id, interviewDuration: interviewsTable.interviewDuration, interviewStartedAt: interviewsTable.interviewStartedAt })
+    .select({
+      id: interviewsTable.id,
+      interviewDuration: interviewsTable.interviewDuration,
+      interviewStartedAt: interviewsTable.interviewStartedAt,
+    })
     .from(interviewsTable)
-    .where(
-      and(
-        eq(interviewsTable.interviewStatus, "INPROGRESS"),
-      ),
-    );
+    .where(and(eq(interviewsTable.interviewStatus, "INPROGRESS")));
 
   const expired = overdue.filter((r) => {
     if (!r.interviewStartedAt) return false;
@@ -459,9 +939,72 @@ export async function detectAndTimeoutOverdueInterviews() {
   await db
     .update(interviewsTable)
     .set({ interviewStatus: "TIMED_OUT", lastActivityAt: now })
-    .where(inArray(interviewsTable.id, expired.map((r) => r.id)));
+    .where(
+      inArray(
+        interviewsTable.id,
+        expired.map((r) => r.id),
+      ),
+    );
 
   return { timedOut: expired.length };
+}
+
+// ── Request next question ─────────────────────────────────────────────────────
+// Guards: interview must be INPROGRESS, current question must be in a completed
+// state (ANSWERED | SKIPPED | TIMED_OUT | EVALUATED). Advances the index,
+// clears currentQuestionId, then delegates to generateAndDeliverQuestionService.
+export async function requestNextQuestionService(
+  interviewId: string,
+  userId: string,
+  io: IoServer,
+): Promise<void> {
+  const context = await readInterviewContext(interviewId);
+  if (!context) {
+    throw new AppError(
+      "Interview context not found",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.INTERVIEW_NOT_FOUND,
+      { isOperational: true },
+    );
+  }
+
+  const { currentQuestionId } = context.questionState;
+  if (!currentQuestionId) {
+    // No question has been delivered yet — just generate the first one
+    await generateAndDeliverQuestionService(interviewId, io);
+    return;
+  }
+
+  // Verify the current question is in a completed state
+  const db = getPgDb();
+  const [current] = await db
+    .select({ questionState: interviewQuestionsTable.questionState })
+    .from(interviewQuestionsTable)
+    .where(eq(interviewQuestionsTable.id, currentQuestionId))
+    .limit(1);
+
+  const completedStates = ["ANSWERED", "SKIPPED", "TIMED_OUT", "EVALUATED"] as const;
+  if (!current || !(completedStates as readonly string[]).includes(current.questionState)) {
+    throw new AppError(
+      "Current question is not yet completed",
+      StatusCodes.CONFLICT,
+      ErrorCodes.QUESTION_NOT_COMPLETED,
+      { isOperational: true },
+    );
+  }
+
+  // Advance index and clear currentQuestionId so generateAndDeliver creates a new one
+  const advancedContext: InterviewContext = {
+    ...context,
+    questionState: {
+      ...context.questionState,
+      currentIndex: context.questionState.currentIndex + 1,
+      currentQuestionId: null,
+    },
+  };
+  await writeInterviewContext(advancedContext, context.config.durationMinutes);
+
+  await generateAndDeliverQuestionService(interviewId, io);
 }
 
 // Called by the evaluation pipeline once an answer has been scored
@@ -479,7 +1022,10 @@ export async function markQuestionEvaluatedService(questionId: string, answerId:
   return answer;
 }
 
-export async function getInterviewMetricsService(authreq: AuthenticatedRequest, interviewId: string) {
+export async function getInterviewMetricsService(
+  authreq: AuthenticatedRequest,
+  interviewId: string,
+) {
   const db = getPgDb();
 
   const [interview] = await db
@@ -499,16 +1045,29 @@ export async function getInterviewMetricsService(authreq: AuthenticatedRequest, 
         eq(interviewsTable.id, interviewId),
         eq(interviewsTable.userId, authreq.auth.userId),
         // Exclude abandoned/cancelled from metrics
-        notInArray(interviewsTable.interviewStatus, TERMINAL_STATUSES.filter((s) => s !== "COMPLETED")),
+        notInArray(
+          interviewsTable.interviewStatus,
+          TERMINAL_STATUSES.filter((s) => s !== "COMPLETED"),
+        ),
       ),
     );
 
   if (!interview) {
-    throw new AppError("Interview not found or not eligible for metrics", StatusCodes.NOT_FOUND, ErrorCodes.INTERVIEW_NOT_FOUND, { isOperational: true });
+    throw new AppError(
+      "Interview not found or not eligible for metrics",
+      StatusCodes.NOT_FOUND,
+      ErrorCodes.INTERVIEW_NOT_FOUND,
+      { isOperational: true },
+    );
   }
 
   if (interview.interviewStatus !== "COMPLETED") {
-    throw new AppError("Metrics are only available for completed interviews", StatusCodes.BAD_REQUEST, ErrorCodes.INTERVIEW_INVALID_STATE, { isOperational: true });
+    throw new AppError(
+      "Metrics are only available for completed interviews",
+      StatusCodes.BAD_REQUEST,
+      ErrorCodes.INTERVIEW_INVALID_STATE,
+      { isOperational: true },
+    );
   }
 
   return {
