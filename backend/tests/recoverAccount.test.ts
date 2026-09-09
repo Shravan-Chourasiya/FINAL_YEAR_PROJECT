@@ -40,7 +40,10 @@ vi.mock("bcrypt", () => ({
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
-import { recoverAccountService, recoverAccountOtpService } from "../src/modules/auth/services/auth.service.js";
+import {
+  recoverAccountService,
+  recoverAccountOtpService,
+} from "../src/modules/auth/services/auth.service.js";
 import { getPgDb } from "../src/db/postgres.init.js";
 import { otpService } from "../src/services/redis.service.js";
 import { sendOtpMail } from "../src/services/nodemailer.service.js";
@@ -54,7 +57,10 @@ type DbMockOptions = {
 };
 
 function mockDb({ selectResult = [disabledUser] }: DbMockOptions = {}) {
-  const updateChain = { set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue(undefined) };
+  const updateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(undefined),
+  };
 
   const select = vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
@@ -82,7 +88,12 @@ describe("recoverAccountService", () => {
 
     await recoverAccountService("user@example.com");
 
-    expect(otpService.storeOTP).toHaveBeenCalledWith("user@example.com", "123456", "recover_account", "user-uuid");
+    expect(otpService.storeOTP).toHaveBeenCalledWith(
+      "user@example.com",
+      "123456",
+      "recover_account",
+      "user-uuid",
+    );
     expect(sendOtpMail).toHaveBeenCalledWith("user@example.com", "123456");
   });
 
@@ -125,7 +136,11 @@ describe("recoverAccountOtpService", () => {
 
     await recoverAccountOtpService(validInput);
 
-    expect(updateChain.set).toHaveBeenCalledWith({ accountStatus: "active", disabledAt: null, scheduledDeletionAt: null });
+    expect(updateChain.set).toHaveBeenCalledWith({
+      accountStatus: "active",
+      disabledAt: null,
+      scheduledDeletionAt: null,
+    });
   });
 
   it("resolves without error on successful OTP verification", async () => {
@@ -136,7 +151,10 @@ describe("recoverAccountOtpService", () => {
   });
 
   it("throws AUTH_INVALID_CREDENTIALS for wrong OTP", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: false, message: "Invalid OTP. 4 attempts remaining." });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: false,
+      message: "Invalid OTP. 4 attempts remaining.",
+    });
     mockDb();
 
     await expect(recoverAccountOtpService(validInput)).rejects.toMatchObject({
@@ -146,7 +164,10 @@ describe("recoverAccountOtpService", () => {
   });
 
   it("throws RATE_LIMIT_EXCEEDED when too many attempts", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: false, message: "Too many failed attempts. Please try again later." });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: false,
+      message: "Too many failed attempts. Please try again later.",
+    });
     mockDb();
 
     await expect(recoverAccountOtpService(validInput)).rejects.toMatchObject({
@@ -156,7 +177,10 @@ describe("recoverAccountOtpService", () => {
   });
 
   it("throws RATE_LIMIT_EXCEEDED when maximum attempts exceeded", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: false, message: "Maximum attempts exceeded" });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: false,
+      message: "Maximum attempts exceeded",
+    });
     mockDb();
 
     await expect(recoverAccountOtpService(validInput)).rejects.toMatchObject({

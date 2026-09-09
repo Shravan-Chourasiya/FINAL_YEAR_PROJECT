@@ -39,10 +39,16 @@ type DbMockOptions = {
   userResult?: unknown[];
 };
 
-function mockDb({ sessionResult = [sessionRecord], userResult = [userRecord] }: DbMockOptions = {}) {
+function mockDb({
+  sessionResult = [sessionRecord],
+  userResult = [userRecord],
+}: DbMockOptions = {}) {
   let selectCallCount = 0;
 
-  const updateChain = { set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue(undefined) };
+  const updateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(undefined),
+  };
 
   const select = vi.fn().mockImplementation(() => {
     selectCallCount++;
@@ -72,7 +78,9 @@ describe("logoutService", () => {
   it("resolves without error on successful logout", async () => {
     mockDb();
 
-    await expect(logoutService("session-uuid", "access-token", "refresh-token")).resolves.toBeUndefined();
+    await expect(
+      logoutService("session-uuid", "access-token", "refresh-token"),
+    ).resolves.toBeUndefined();
   });
 
   it("blacklists both access and refresh tokens", async () => {
@@ -113,7 +121,9 @@ describe("logoutService", () => {
   it("throws RESOURCE_NOT_FOUND when session does not exist", async () => {
     mockDb({ sessionResult: [] });
 
-    await expect(logoutService("nonexistent-session", "access-token", "refresh-token")).rejects.toMatchObject({
+    await expect(
+      logoutService("nonexistent-session", "access-token", "refresh-token"),
+    ).rejects.toMatchObject({
       statusCode: StatusCodes.NOT_FOUND,
       errorCode: ErrorCodes.RESOURCE_NOT_FOUND,
     });
@@ -122,7 +132,9 @@ describe("logoutService", () => {
   it("does not blacklist tokens when session is not found", async () => {
     mockDb({ sessionResult: [] });
 
-    await expect(logoutService("nonexistent-session", "access-token", "refresh-token")).rejects.toThrow();
+    await expect(
+      logoutService("nonexistent-session", "access-token", "refresh-token"),
+    ).rejects.toThrow();
 
     expect(blacklistToken).not.toHaveBeenCalled();
   });

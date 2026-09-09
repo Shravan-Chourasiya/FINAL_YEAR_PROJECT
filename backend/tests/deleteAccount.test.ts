@@ -34,7 +34,10 @@ import { blacklistToken } from "../src/utils/token.util.js";
 const activeUser = { id: "user-uuid", accountStatus: "active" };
 
 function mockDb(userResult: unknown[] = [activeUser]) {
-  const updateChain = { set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue(undefined) };
+  const updateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(undefined),
+  };
 
   const select = vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
@@ -60,7 +63,9 @@ describe("deleteAccountService", () => {
   it("resolves without error on successful account deletion", async () => {
     mockDb();
 
-    await expect(deleteAccountService("user-uuid", "access-token", "refresh-token")).resolves.toBeUndefined();
+    await expect(
+      deleteAccountService("user-uuid", "access-token", "refresh-token"),
+    ).resolves.toBeUndefined();
   });
 
   it("sets accountStatus to disabled with disabledAt and scheduledDeletionAt", async () => {
@@ -84,9 +89,9 @@ describe("deleteAccountService", () => {
     await deleteAccountService("user-uuid", "access-token", "refresh-token");
 
     const after = Date.now();
-    const call = vi.mocked(updateChain.set).mock.calls.find(
-      ([arg]) => (arg as Record<string, unknown>).accountStatus === "disabled",
-    );
+    const call = vi
+      .mocked(updateChain.set)
+      .mock.calls.find(([arg]) => (arg as Record<string, unknown>).accountStatus === "disabled");
     const scheduledDeletionAt = (call?.[0] as Record<string, unknown>).scheduledDeletionAt as Date;
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -115,7 +120,9 @@ describe("deleteAccountService", () => {
   it("throws RESOURCE_NOT_FOUND when user does not exist", async () => {
     mockDb([]);
 
-    await expect(deleteAccountService("nonexistent-uuid", "access-token", "refresh-token")).rejects.toMatchObject({
+    await expect(
+      deleteAccountService("nonexistent-uuid", "access-token", "refresh-token"),
+    ).rejects.toMatchObject({
       statusCode: StatusCodes.NOT_FOUND,
       errorCode: ErrorCodes.RESOURCE_NOT_FOUND,
     });
@@ -124,7 +131,9 @@ describe("deleteAccountService", () => {
   it("does not update DB or blacklist tokens when user is not found", async () => {
     const { update } = mockDb([]);
 
-    await expect(deleteAccountService("nonexistent-uuid", "access-token", "refresh-token")).rejects.toThrow();
+    await expect(
+      deleteAccountService("nonexistent-uuid", "access-token", "refresh-token"),
+    ).rejects.toThrow();
 
     expect(update).not.toHaveBeenCalled();
     expect(blacklistToken).not.toHaveBeenCalled();

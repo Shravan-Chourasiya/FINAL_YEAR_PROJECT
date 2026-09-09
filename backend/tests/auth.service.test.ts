@@ -29,7 +29,10 @@ vi.mock("../src/utils/email.js", () => ({
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
-import { registerUserService, verifyOtpService } from "../src/modules/auth/services/auth.service.js";
+import {
+  registerUserService,
+  verifyOtpService,
+} from "../src/modules/auth/services/auth.service.js";
 import { otpService } from "../src/services/redis.service.js";
 import { sendOtpMail } from "../src/services/nodemailer.service.js";
 import { getPgDb } from "../src/db/postgres.init.js";

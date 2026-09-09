@@ -61,27 +61,34 @@ beforeAll(async () => {
   request = supertest(app);
 }, 120_000);
 
-afterAll(async () => { await teardown(); });
+afterAll(async () => {
+  await teardown();
+});
 beforeEach(async () => {
   await resetDb();
   await resetRedis();
 });
 
 // Helper: create a verified, active user directly in DB
-async function seedUser(overrides: Partial<{ email: string; password: string; username: string }> = {}) {
+async function seedUser(
+  overrides: Partial<{ email: string; password: string; username: string }> = {},
+) {
   const { db } = getContainers();
   const plain = overrides.password ?? "Password1";
   const hash = await bcrypt.hash(plain, 1);
   const email = overrides.email ?? `user-${randomUUID()}@example.com`;
   const username = overrides.username ?? `user_${randomUUID().slice(0, 8)}`;
 
-  const [user] = await db.insert(usersTable).values({
-    email,
-    password: hash,
-    username,
-    isVerified: true,
-    accountStatus: "active",
-  }).returning({ id: usersTable.id, email: usersTable.email });
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      email,
+      password: hash,
+      username,
+      isVerified: true,
+      accountStatus: "active",
+    })
+    .returning({ id: usersTable.id, email: usersTable.email });
 
   return { ...user!, plainPassword: plain };
 }
@@ -102,7 +109,10 @@ async function loginUser(email: string, password: string) {
 }
 
 function extractCookie(cookies: string[] | undefined, name: string): string | undefined {
-  return cookies?.find((c) => c.startsWith(`${name}=`))?.split(";")[0]?.split("=")[1];
+  return cookies
+    ?.find((c) => c.startsWith(`${name}=`))
+    ?.split(";")[0]
+    ?.split("=")[1];
 }
 
 // ── Part 3.1 — Registration ───────────────────────────────────────────────────
@@ -197,7 +207,10 @@ describe("POST /usr/logout", () => {
     // Logout
     const logoutRes = await request
       .post(`${API}/usr/logout`)
-      .set("Cookie", `access_token=${accessToken}; refresh_token=${refreshToken}; csrf_token=${csrfToken}`)
+      .set(
+        "Cookie",
+        `access_token=${accessToken}; refresh_token=${refreshToken}; csrf_token=${csrfToken}`,
+      )
       .set("x-csrf-token", csrfToken);
 
     expect(logoutRes.status).toBe(200);
@@ -246,26 +259,20 @@ describe("GET /usr/me (protected route)", () => {
 
 describe("CORS middleware", () => {
   it("allowed origin receives Access-Control-Allow-Origin header", async () => {
-    const res = await request
-      .get("/health")
-      .set("Origin", "http://localhost:3000");
+    const res = await request.get("/health").set("Origin", "http://localhost:3000");
 
     expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
   });
 
   it("disallowed origin does not receive ACAO header", async () => {
-    const res = await request
-      .get("/health")
-      .set("Origin", "http://evil.com");
+    const res = await request.get("/health").set("Origin", "http://evil.com");
 
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
   it("in test mode (NODE_ENV=test), localhost origins are allowed by dev rule", async () => {
     // The cors.ts allows localhost:* in development — test maps to development rule
-    const res = await request
-      .get("/health")
-      .set("Origin", "http://localhost:5173");
+    const res = await request.get("/health").set("Origin", "http://localhost:5173");
 
     // In test NODE_ENV, the dev localhost rule applies
     // If this fails, it means test env is treated as production — update cors.ts accordingly
@@ -364,7 +371,8 @@ describe("Expired session", () => {
     const csrfToken = extractCookie(loginRes.cookies, "csrf_token") ?? CSRF;
 
     // Manually expire the session in DB
-    await db.update(sessionsTable)
+    await db
+      .update(sessionsTable)
       .set({ expiryDate: new Date(Date.now() - 1000), isExpired: true, isActive: false })
       .where(eq(sessionsTable.userId, user.id!));
 
@@ -400,7 +408,10 @@ describe("Revoked session", () => {
     // Revoke via logout
     await request
       .post(`${API}/usr/logout`)
-      .set("Cookie", `access_token=${accessToken}; refresh_token=${refreshToken}; csrf_token=${csrfToken}`)
+      .set(
+        "Cookie",
+        `access_token=${accessToken}; refresh_token=${refreshToken}; csrf_token=${csrfToken}`,
+      )
       .set("x-csrf-token", csrfToken);
 
     // Attempt to use the revoked token

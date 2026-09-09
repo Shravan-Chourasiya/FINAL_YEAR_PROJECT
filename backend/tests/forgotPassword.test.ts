@@ -43,7 +43,10 @@ vi.mock("bcrypt", () => ({
 
 // ── Imports after mocks ───────────────────────────────────────────────────────
 
-import { forgotPasswordService, forgotPasswordOtpVerifyService } from "../src/modules/auth/services/auth.service.js";
+import {
+  forgotPasswordService,
+  forgotPasswordOtpVerifyService,
+} from "../src/modules/auth/services/auth.service.js";
 import { getPgDb } from "../src/db/postgres.init.js";
 import { otpService } from "../src/services/redis.service.js";
 import { sendOtpMail } from "../src/services/nodemailer.service.js";
@@ -61,7 +64,10 @@ type DbMockOptions = {
 function mockDb({ userResult = [activeUser], sessionResult = [] }: DbMockOptions = {}) {
   let selectCallCount = 0;
 
-  const updateChain = { set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue(undefined) };
+  const updateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(undefined),
+  };
 
   const select = vi.fn().mockImplementation(() => {
     selectCallCount++;
@@ -105,7 +111,12 @@ describe("forgotPasswordService", () => {
 
     await forgotPasswordService({ email: "user@example.com" });
 
-    expect(otpService.storeOTP).toHaveBeenCalledWith("user@example.com", "123456", "forgot_password", "user-uuid");
+    expect(otpService.storeOTP).toHaveBeenCalledWith(
+      "user@example.com",
+      "123456",
+      "forgot_password",
+      "user-uuid",
+    );
     expect(sendOtpMail).toHaveBeenCalledWith("user@example.com", "123456");
   });
 
@@ -135,14 +146,23 @@ describe("forgotPasswordService", () => {
 // ── forgotPasswordOtpVerifyService ────────────────────────────────────────────
 
 describe("forgotPasswordOtpVerifyService", () => {
-  const validInput = { email: "user@example.com", otp: "123456", newPassword: "NewPass1", confirmPassword: "NewPass1" };
+  const validInput = {
+    email: "user@example.com",
+    otp: "123456",
+    newPassword: "NewPass1",
+    confirmPassword: "NewPass1",
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("updates password and invalidates all active sessions on success", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: true, message: "OTP verified", userId: "user-uuid" });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: true,
+      message: "OTP verified",
+      userId: "user-uuid",
+    });
     const activeSessions = [
       { accessToken: "access-1", refreshToken: "refresh-1" },
       { accessToken: "access-2", refreshToken: "refresh-2" },
@@ -156,7 +176,11 @@ describe("forgotPasswordOtpVerifyService", () => {
   });
 
   it("blacklists all active session tokens on success", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: true, message: "OTP verified", userId: "user-uuid" });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: true,
+      message: "OTP verified",
+      userId: "user-uuid",
+    });
     const activeSessions = [
       { accessToken: "access-1", refreshToken: "refresh-1" },
       { accessToken: "access-2", refreshToken: "refresh-2" },
@@ -173,7 +197,11 @@ describe("forgotPasswordOtpVerifyService", () => {
   });
 
   it("resolves without error when no active sessions exist", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: true, message: "OTP verified", userId: "user-uuid" });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: true,
+      message: "OTP verified",
+      userId: "user-uuid",
+    });
     mockDb({ sessionResult: [] });
 
     await expect(forgotPasswordOtpVerifyService(validInput)).resolves.toBeUndefined();
@@ -181,7 +209,10 @@ describe("forgotPasswordOtpVerifyService", () => {
   });
 
   it("throws AUTH_INVALID_CREDENTIALS for wrong OTP", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: false, message: "Invalid OTP. 4 attempts remaining." });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: false,
+      message: "Invalid OTP. 4 attempts remaining.",
+    });
     mockDb();
 
     await expect(forgotPasswordOtpVerifyService(validInput)).rejects.toMatchObject({
@@ -191,7 +222,10 @@ describe("forgotPasswordOtpVerifyService", () => {
   });
 
   it("throws RATE_LIMIT_EXCEEDED when too many attempts", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: false, message: "Too many failed attempts. Please try again later." });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: false,
+      message: "Too many failed attempts. Please try again later.",
+    });
     mockDb();
 
     await expect(forgotPasswordOtpVerifyService(validInput)).rejects.toMatchObject({
@@ -201,7 +235,10 @@ describe("forgotPasswordOtpVerifyService", () => {
   });
 
   it("throws RATE_LIMIT_EXCEEDED when maximum attempts exceeded", async () => {
-    vi.mocked(otpService.verifyOTP).mockResolvedValue({ success: false, message: "Maximum attempts exceeded" });
+    vi.mocked(otpService.verifyOTP).mockResolvedValue({
+      success: false,
+      message: "Maximum attempts exceeded",
+    });
     mockDb();
 
     await expect(forgotPasswordOtpVerifyService(validInput)).rejects.toMatchObject({

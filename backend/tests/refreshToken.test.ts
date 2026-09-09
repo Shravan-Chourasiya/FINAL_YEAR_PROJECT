@@ -15,7 +15,12 @@ vi.mock("../src/utils/token.util.js", () => ({
   blacklistToken: vi.fn().mockResolvedValue(undefined),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
   verifyToken: vi.fn(),
-  COOKIE_NAMES: { ACCESS: "access_token", REFRESH: "refresh_token", DEVICE_ID: "device_id", CSRF: "csrf_token" },
+  COOKIE_NAMES: {
+    ACCESS: "access_token",
+    REFRESH: "refresh_token",
+    DEVICE_ID: "device_id",
+    CSRF: "csrf_token",
+  },
   COOKIE_OPTIONS: {},
 }));
 
@@ -31,7 +36,13 @@ vi.mock("bcrypt", () => ({
 
 import { refreshTokenService } from "../src/modules/auth/services/auth.service.js";
 import { getPgDb } from "../src/db/postgres.init.js";
-import { isTokenBlacklisted, verifyToken, blacklistToken, signAccessToken, signRefreshToken } from "../src/utils/token.util.js";
+import {
+  isTokenBlacklisted,
+  verifyToken,
+  blacklistToken,
+  signAccessToken,
+  signRefreshToken,
+} from "../src/utils/token.util.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +64,10 @@ const activeSession = {
 };
 
 function mockDb(sessionResult: unknown[] = [activeSession]) {
-  const updateChain = { set: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue(undefined) };
+  const updateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(undefined),
+  };
 
   const select = vi.fn().mockReturnValue({
     from: vi.fn().mockReturnValue({
@@ -102,7 +116,10 @@ describe("refreshTokenService", () => {
     expect(blacklistToken).toHaveBeenCalledWith("old-access-token");
     // Session update includes csrfToken too
     expect(updateChain.set).toHaveBeenCalledWith(
-      expect.objectContaining({ accessToken: "new-access-token", refreshToken: "new-refresh-token" })
+      expect.objectContaining({
+        accessToken: "new-access-token",
+        refreshToken: "new-refresh-token",
+      }),
     );
   });
 
@@ -136,7 +153,9 @@ describe("refreshTokenService", () => {
 
   it("throws AUTH_SESSION_EXPIRED when verifyToken throws", async () => {
     vi.mocked(isTokenBlacklisted).mockResolvedValue(false);
-    vi.mocked(verifyToken).mockImplementation(() => { throw new Error("jwt expired"); });
+    vi.mocked(verifyToken).mockImplementation(() => {
+      throw new Error("jwt expired");
+    });
 
     await expect(refreshTokenService("expired-token")).rejects.toMatchObject({
       statusCode: StatusCodes.UNAUTHORIZED,
