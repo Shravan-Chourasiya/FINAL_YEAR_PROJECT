@@ -54,8 +54,8 @@ export interface SocketInterviewData {
 export type SocketData = SocketAuthData & SocketInterviewData;
 
 // ── Typed server / socket aliases ─────────────────────────────────────────────
-export type IoServer = Server<ClientToServerEvents, ServerToClientEvents, {}, SocketData>;
-export type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents, {}, SocketData>;
+export type IoServer = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+export type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CLIENT → SERVER EVENTS
