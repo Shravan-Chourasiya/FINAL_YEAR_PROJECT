@@ -167,6 +167,16 @@ async function interviewerNode(state: InterviewGraphState): Promise<Partial<Inte
       generated = await callGenerateWithFallback(prompt, input);
       if (!askedTitles.has(generated.questionTitle.toLowerCase().trim())) break;
     }
+
+    // Repetition exhaustion: if the retry still produced a repeat, accept it.
+    // Rejecting here would crash the interview; the candidate will see a duplicate
+    // question rather than a broken session. This is the safest degraded behavior.
+    if (askedTitles.has(generated.questionTitle.toLowerCase().trim())) {
+      logger.warn(
+        { interviewId: state.interviewId, title: generated.questionTitle },
+        "[graph] interviewer — repetition retry exhausted, accepting repeated question",
+      );
+    }
   }
 
   logger.info(

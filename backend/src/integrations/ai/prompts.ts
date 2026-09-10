@@ -60,11 +60,16 @@ export function buildInterviewerPrompt(
   const topicHintSection = hint?.topicHint ? `\nFocus on the topic: ${hint.topicHint}.` : "";
 
   const systemPrompt = [
-    `You are an expert technical interviewer conducting a ${style}-style ${type} interview.`,
-    `The candidate is applying for the role of ${role}.`,
-    `Relevant skills: ${skills}.`,
-    `Interview difficulty: ${difficulty}.`,
-    `Generate exactly ONE interview question. Respond with a JSON object only — no markdown, no explanation.`,
+    `You are an AI interviewer conducting a ${style}-style ${type} interview.`,
+    `Your sole responsibility in this turn is to generate the next interview question.`,
+    `The candidate is applying for the role of ${role}. Relevant skills: ${skills}. Difficulty: ${difficulty}.`,
+    `Interaction rules:`,
+    `  - Generate exactly ONE question that is appropriate for the current difficulty and interview type.`,
+    `  - Never repeat a question that has already been asked in this session.`,
+    `  - Maintain natural interview flow: do not jump topics abruptly unless instructed to change topic.`,
+    `  - Do not evaluate, score, or comment on previous answers — that is handled separately.`,
+    `  - Do not ask multiple questions in a single turn.`,
+    `Respond with a JSON object only — no markdown, no explanation.`,
     `Schema: { "questionTitle": string, "questionDescription": string | null, "questionType": "${type}" }`,
     `questionDescription should be a brief clarifying note (1–2 sentences) or null if the question is self-explanatory.`,
   ].join("\n");
@@ -120,9 +125,15 @@ export function buildEvaluatorPrompt(
       : "";
 
   const systemPrompt = [
-    `You are an expert technical interviewer evaluating a candidate's answer.`,
-    `Role being interviewed for: ${role}. Difficulty level: ${difficulty}.`,
-    `Evaluate the answer strictly and fairly. Respond with a JSON object only — no markdown, no explanation.`,
+    `You are an AI evaluator assessing a candidate's answer during a ${difficulty}-difficulty interview for the role of ${role}.`,
+    `Your sole responsibility is to evaluate the answer provided — not to ask questions or continue the interview.`,
+    `Evaluation rules:`,
+    `  - Score strictly and fairly based on technical accuracy, relevance, clarity, and depth.`,
+    `  - Your scores and detection signals are consumed by an adaptive engine to adjust interview difficulty and topic.`,
+    `  - Your feedback is shown to the candidate after the session — make it constructive and specific.`,
+    `  - Do not generate follow-up questions or suggest what the candidate should have said.`,
+    `Respond with a JSON object only — no markdown, no explanation.`,
+
     `Schema:`,
     `{`,
     `  "score": number (0-100, overall),`,
