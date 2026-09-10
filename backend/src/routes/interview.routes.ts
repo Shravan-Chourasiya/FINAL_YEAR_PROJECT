@@ -12,6 +12,7 @@ import {
   getInterviewByIdController,
   getInterviewMetricsController,
   getInterviewHistoryController,
+  getInterviewReportController,
   getResumableInterviewsController,
   startInterviewController,
   pauseInterviewController,
@@ -83,6 +84,15 @@ export function createInterviewRouter() {
     InterviewLimiter,
     requireInterviewOwnership,
     getInterviewMetricsController,
+  );
+
+  router.get(
+    "/interviews/:id/report",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    getInterviewReportController,
   );
 
   router.post(

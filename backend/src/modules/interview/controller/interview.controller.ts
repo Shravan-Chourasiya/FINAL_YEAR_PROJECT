@@ -8,6 +8,7 @@ import {
   getInterviewByIdService,
   getInterviewMetricsService,
   getInterviewHistoryService,
+  getInterviewReportService,
   getResumableInterviewsService,
   startInterviewService,
   pauseInterviewService,
@@ -251,6 +252,26 @@ export const getInterviewMetricsController = async (
       success: true,
       statusCode: StatusCodes.OK,
       message: "Interview metrics retrieved successfully.",
+      data,
+    };
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getInterviewReportController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const authreq = req as AuthenticatedRequest;
+    const data = await getInterviewReportService(authreq, String(req.params.id));
+    const response: SuccessResponse = {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "Interview report retrieved successfully.",
       data,
     };
     res.status(StatusCodes.OK).json(response);
