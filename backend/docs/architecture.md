@@ -220,3 +220,37 @@ history above.
   integration boundary (Rule 3.2/3.3) is designed so `integrations/ai`'s
   internals could be swapped for an HTTP client to a separate service
   without any module code changing.
+- **2026-09-09** — Implemented final report generation in `modules/interview`.
+  **Authoritative evaluation source:** `interviewAnswersTable.evaluationData` (jsonb).
+  `answerEvaluationTable` exists in the schema but is never written to by the
+  current evaluation pipeline and remains intentionally unused.
+  **Score mapping** (evaluator field → `interview_results` column):
+  `score → overallScore`, `correctness → technicalScore`, `clarity → communicationScore`,
+  `relevance → problemSolvingScore`, `technicalDepth → confidenceScore`.
+  **Aggregation:** arithmetic mean across all evaluated answers. Missing/null
+  evaluation data is excluded from the mean — it does not become 0.
+  **Idempotency:** enforced by `UNIQUE(interview_id)` on `interview_results` combined
+  with `INSERT … ON CONFLICT DO NOTHING`.
+  **Completion integration:** `generateInterviewReportService` is called fire-and-forget
+  from `endInterviewService`, `endInterviewSystemService`, and the adaptive termination
+  path (via `endInterviewSystemService`). Report failure is logged but does not roll
+  back the COMPLETED transition.
+  **Read path:** `GET /interviews/:id/report` reads the persisted row — no LLM call.
+  `getInterviewMetricsService` now returns the persisted `interview_results` row
+  instead of the previously unpopulated `interviewOutcome` jsonb field.
+- **2026-09-09** — Implemented Interviewer/Evaluator prompt separation in `integrations/ai/prompts.ts`.
+  **Interviewer responsibility:** generate the next interview question — maintain flow, avoid repetition,
+  respect difficulty and interview type, never evaluate or comment on previous answers.
+  **Evaluator responsibility:** score the candidate's answer across five dimensions (score, correctness,
+  relevance, clarity, technicalDepth), produce detection signals consumed by the adaptive engine, and
+  generate constructive feedback shown to the candidate post-session.
+  **Why prompt-level separation is sufficient:** both roles are stateless request/response operations
+  against the same LLM API. The roles are semantically distinct (generation vs. evaluation) and are
+  already routed to separate graph nodes (interviewer / evaluator) by the LangGraph router. Separate
+  providers or models would add operational complexity (two API keys, two fallback chains, two rate
+  limits) with no quality benefit at this stage.
+  **Separate providers/models intentionally NOT used:** the provider architecture (`provider.ts`) is
+  unchanged. Both nodes call the same `callGenerateWithFallback` / `callEvaluateWithFallback` functions
+  which share the same provider chain (groq → mistral → stub). If model-level separation is required
+  in a future phase, the `ModelProvider` interface already supports it — add a second provider chain
+  without touching any module or node code.

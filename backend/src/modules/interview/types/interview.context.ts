@@ -4,9 +4,10 @@
 import type {
   CandidatePerformanceState,
   AdaptationDecision,
+  AdaptationHint,
 } from "../../../integrations/ai/adaptive/index.js";
 
-export type { CandidatePerformanceState, AdaptationDecision };
+export type { CandidatePerformanceState, AdaptationDecision, AdaptationHint };
 
 export interface InterviewConfig {
   interviewType: "BEHAVIORAL" | "TECHNICAL" | "MIXED";
@@ -43,4 +44,7 @@ export interface InterviewContext {
   aiContext: AiContext;
   performanceState: CandidatePerformanceState;
   adaptationHistory: AdaptationDecision[]; // one entry per question, for audit
+  // Set after each adaptation decision; consumed (and cleared) by the next
+  // generateAndDeliverQuestionService call so the hint survives a lookahead miss.
+  pendingAdaptationHint?: AdaptationHint;
 }

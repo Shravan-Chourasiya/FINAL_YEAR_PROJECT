@@ -1,4 +1,4 @@
-import { pgTable, uuid, numeric, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, numeric, integer, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { dbNow } from "../../../utils/db.util.js";
 import { interviewsTable } from "./interview.schema.js";
 
@@ -24,4 +24,6 @@ export const interviewResultsTable = pgTable("interview_results", {
     .notNull()
     .defaultNow()
     .$onUpdateFn(dbNow),
-});
+},
+(t) => [unique("interview_results_interview_id_unique").on(t.interviewId)],
+);

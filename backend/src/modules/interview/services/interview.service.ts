@@ -4,6 +4,7 @@ import type { interviewStatusEnum } from "../schemas/interview.schema.js";
 import { interviewsTable } from "../schemas/interview.schema.js";
 import { interviewAnswersTable } from "../schemas/answers.schema.js";
 import { interviewQuestionsTable } from "../schemas/question.schema.js";
+import { interviewResultsTable } from "../schemas/result.schema.js";
 import type { AuthenticatedRequest } from "../../../types/request.js";
 import { AppError } from "../../../utils/appError.js";
 import { ErrorCodes } from "../../../constants/errorCodes.js";
@@ -345,6 +346,11 @@ export async function generateAndDeliverQuestionService(
     logger.info({ interviewId, sequenceNumber }, "[ai] lookahead cache hit");
   } else {
     // ── Cache miss — fetch previous questions and generate synchronously ────
+    // Recover the pending adaptation hint (set by the last evaluation pipeline)
+    // so the synchronous generation path respects the same adaptive decision
+    // that was used to pre-warm the (now-missing) lookahead.
+    const pendingHint = context.pendingAdaptationHint;
+
     const previous = await db
       .select({
         questionTitle: interviewQuestionsTable.questionTitle,
@@ -367,6 +373,7 @@ export async function generateAndDeliverQuestionService(
         questionType: q.questionType,
         wasAnswered: q.questionState === "ANSWERED" || q.questionState === "EVALUATED",
       })),
+      ...(pendingHint ? { adaptationHint: pendingHint } : {}),
     });
     generated = result.question;
   }
@@ -557,9 +564,142 @@ export async function cancelInterviewService(authreq: AuthenticatedRequest, inte
   return transitionInterview(interviewId, interview.interviewStatus, "CANCELLED");
 }
 
+// ── Report generation ─────────────────────────────────────────────────────────
+// Authoritative evaluation source: interviewAnswersTable.evaluationData (jsonb).
+// answerEvaluationTable exists in the schema but is never written to by the
+// current evaluation pipeline — it is intentionally unused.
+//
+// Score mapping (evaluator → report column):
+//   correctness  → technicalScore
+//   relevance    → problemSolvingScore
+//   clarity      → communicationScore
+//   technicalDepth → confidenceScore  (closest semantic match available)
+//   score        → overallScore (per-answer composite, averaged across answers)
+//
+// Aggregation: simple arithmetic mean across all evaluated answers.
+// Missing/null evaluation data is excluded from the mean; it does not become 0.
+// Idempotency: enforced by the UNIQUE constraint on interview_results.interview_id
+// combined with an INSERT … ON CONFLICT DO NOTHING pattern.
+export async function generateInterviewReportService(interviewId: string): Promise<void> {
+  const db = getPgDb();
+
+  // ── Fetch all answers with their evaluation data ──────────────────────────
+  const answers = await db
+    .select({
+      id: interviewAnswersTable.id,
+      answerData: interviewAnswersTable.answerData,
+      answerState: interviewAnswersTable.answerState,
+      evaluationData: interviewAnswersTable.evaluationData,
+    })
+    .from(interviewAnswersTable)
+    .where(eq(interviewAnswersTable.interviewId, interviewId));
+
+  // ── Fetch question states for counts ─────────────────────────────────────
+  const questions = await db
+    .select({ questionState: interviewQuestionsTable.questionState })
+    .from(interviewQuestionsTable)
+    .where(eq(interviewQuestionsTable.interviewId, interviewId));
+
+  const questionsAnswered = questions.filter(
+    (q) => q.questionState === "ANSWERED" || q.questionState === "EVALUATED",
+  ).length;
+  const questionsSkipped = questions.filter(
+    (q) => q.questionState === "SKIPPED" || q.questionState === "TIMED_OUT",
+  ).length;
+
+  // ── Collect evaluated answers only ───────────────────────────────────────
+  const evaluated = answers.filter(
+    (a) => a.answerState === "EVALUATED" && a.evaluationData !== null,
+  );
+  const questionsEvaluated = evaluated.length;
+
+  // ── Aggregate scores — mean across evaluated answers ─────────────────────
+  function mean(values: number[]): number {
+    if (values.length === 0) return 0;
+    return values.reduce((s, v) => s + v, 0) / values.length;
+  }
+
+  const overallScore = mean(evaluated.map((a) => a.evaluationData!.score));
+  const technicalScore = mean(evaluated.map((a) => a.evaluationData!.correctness));
+  const communicationScore = mean(evaluated.map((a) => a.evaluationData!.clarity));
+  const problemSolvingScore = mean(evaluated.map((a) => a.evaluationData!.relevance));
+  const confidenceScore = mean(evaluated.map((a) => a.evaluationData!.technicalDepth));
+
+  // ── Aggregate text fields — deduplicated union ────────────────────────────
+  const allStrengths = [...new Set(evaluated.flatMap((a) => a.evaluationData!.strengths))];
+  const allWeaknesses = [...new Set(evaluated.flatMap((a) => a.evaluationData!.weaknesses))];
+  const feedback = evaluated.map((a) => a.evaluationData!.feedback).filter(Boolean).join(" ");
+
+  // ── Fetch interview duration ──────────────────────────────────────────────
+  const interview = await fetchInterviewById(interviewId);
+  const totalDuration = interview?.interviewDuration ?? 0;
+
+  // ── Upsert — ON CONFLICT DO NOTHING enforces idempotency ─────────────────
+  await db
+    .insert(interviewResultsTable)
+    .values({
+      interviewId,
+      overallScore: overallScore.toFixed(2),
+      technicalScore: technicalScore.toFixed(2),
+      communicationScore: communicationScore.toFixed(2),
+      problemSolvingScore: problemSolvingScore.toFixed(2),
+      confidenceScore: confidenceScore.toFixed(2),
+      questionsAnswered,
+      questionsSkipped,
+      questionsEvaluated,
+      totalDuration,
+      feedback: feedback || "",
+      strengths: allStrengths,
+      weaknesses: allWeaknesses,
+    })
+    .onConflictDoNothing();
+}
+
+export async function getInterviewReportService(
+  authreq: AuthenticatedRequest,
+  interviewId: string,
+) {
+  const interview = await resolveInterview(authreq, interviewId);
+
+  if (interview.interviewStatus !== "COMPLETED") {
+    throw new AppError(
+      "Report is only available for completed interviews",
+      StatusCodes.BAD_REQUEST,
+      ErrorCodes.INTERVIEW_INVALID_STATE,
+      { isOperational: true },
+    );
+  }
+
+  const db = getPgDb();
+  const [report] = await db
+    .select()
+    .from(interviewResultsTable)
+    .where(eq(interviewResultsTable.interviewId, interviewId))
+    .limit(1);
+
+  if (!report) {
+    // Report not yet generated (e.g. generation failed at completion time).
+    // Generate it now on-demand — no LLM call, pure DB aggregation.
+    await generateInterviewReportService(interviewId);
+    const [generated] = await db
+      .select()
+      .from(interviewResultsTable)
+      .where(eq(interviewResultsTable.interviewId, interviewId))
+      .limit(1);
+    return generated ?? null;
+  }
+
+  return report;
+}
+
 export async function endInterviewService(authreq: AuthenticatedRequest, interviewId: string) {
   const interview = await resolveInterview(authreq, interviewId);
-  return transitionInterview(interviewId, interview.interviewStatus, "COMPLETED");
+  const updated = await transitionInterview(interviewId, interview.interviewStatus, "COMPLETED");
+  // Fire-and-forget — report failure must not roll back the completion
+  void generateInterviewReportService(interviewId).catch((err) => {
+    logger.error({ err, interviewId }, "[report] generateInterviewReportService failed after endInterviewService");
+  });
+  return updated;
 }
 
 // System-driven completion — called by the adaptive engine when it decides to
@@ -568,7 +708,11 @@ export async function endInterviewService(authreq: AuthenticatedRequest, intervi
 export async function endInterviewSystemService(interviewId: string) {
   const interview = await fetchInterviewById(interviewId);
   if (!interview) return null;
-  return transitionInterview(interviewId, interview.interviewStatus, "COMPLETED");
+  const updated = await transitionInterview(interviewId, interview.interviewStatus, "COMPLETED");
+  void generateInterviewReportService(interviewId).catch((err) => {
+    logger.error({ err, interviewId }, "[report] generateInterviewReportService failed after endInterviewSystemService");
+  });
+  return updated;
 }
 
 // System-driven abandonment — called by the stale detection job, not by users
@@ -1035,7 +1179,6 @@ export async function getInterviewMetricsService(
       interviewDuration: interviewsTable.interviewDuration,
       interviewQuestionsGeneratedCount: interviewsTable.interviewQuestionsGeneratedCount,
       interviewQuestionsAnsweredCount: interviewsTable.interviewQuestionsAnsweredCount,
-      interviewOutcome: interviewsTable.interviewOutcome,
       createdAt: interviewsTable.createdAt,
       updatedAt: interviewsTable.updatedAt,
     })
@@ -1044,7 +1187,6 @@ export async function getInterviewMetricsService(
       and(
         eq(interviewsTable.id, interviewId),
         eq(interviewsTable.userId, authreq.auth.userId),
-        // Exclude abandoned/cancelled from metrics
         notInArray(
           interviewsTable.interviewStatus,
           TERMINAL_STATUSES.filter((s) => s !== "COMPLETED"),
@@ -1070,14 +1212,20 @@ export async function getInterviewMetricsService(
     );
   }
 
+  const [report] = await db
+    .select()
+    .from(interviewResultsTable)
+    .where(eq(interviewResultsTable.interviewId, interviewId))
+    .limit(1);
+
   return {
     interviewId: interview.id,
     status: interview.interviewStatus,
     duration: interview.interviewDuration,
     questionsGenerated: interview.interviewQuestionsGeneratedCount,
     questionsAnswered: interview.interviewQuestionsAnsweredCount,
-    outcome: interview.interviewOutcome,
     createdAt: interview.createdAt,
     updatedAt: interview.updatedAt,
+    report: report ?? null,
   };
 }
