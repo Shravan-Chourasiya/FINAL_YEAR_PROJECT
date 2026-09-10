@@ -4,7 +4,7 @@ import { config } from "dotenv";
 config();
 
 export default defineConfig({
-  schema: "./src/modules/auth/schemas/*.ts",
+  schema: ["./src/modules/auth/schemas/*.ts", "./src/modules/interview/schemas/*.ts"],
   out: "./src/db/migrations",
   dialect: "postgresql",
   dbCredentials: {
