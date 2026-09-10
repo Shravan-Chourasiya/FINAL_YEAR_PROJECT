@@ -1,0 +1,140 @@
+BACKEND CONTRACT (current implementation; do not invent endpoints/events):
+
+HTTP base paths:
+  - Auth and interview routes are mounted under `/${API_VERSION}/`.
+    `API_VERSION` is required environment configuration; it is not hardcoded
+    in the Express app.
+  - Health endpoints are not versioned: GET /health, GET /ping, GET /ready,
+    and GET /version.
+  - The Socket.IO server uses the same HTTP server and the default namespace.
+
+Auth endpoints (all JSON, credentials: 'include'):
+  POST /auth/register        { email, password, username, firstName?, lastName? }
+  POST /auth/verify-otp      { email, otp }              // 6-digit
+  POST /auth/login           { email, password, deviceType: 'desktop'|'mobile'|'tablet' }
+  POST /auth/refresh         (no body — reads refresh cookie)
+  POST /usr/logout           (requires CSRF header)
+  DELETE /usr/account        (requires CSRF header)
+  POST /auth/recover-account { email }
+  POST /auth/recover-account/verify   { email, otp }
+  POST /auth/forgot-password { email }
+  POST /auth/forgot-password/verify   { email, otp, newPassword, confirmPassword }
+  POST /usr/update-password  { email, currentPassword, newPassword }   (CSRF)
+  POST /usr/update-email     { email }                                (CSRF)
+  POST /usr/update-email/verify { email, otp }                        (CSRF)*
+  GET  /usr/me
+  GET  /usr/sessions
+  DELETE /usr/sessions                                                (CSRF)
+  DELETE /usr/session/:id                                             (CSRF)
+
+  *Current wiring note: /usr/update-email/verify is registered with
+  updateEmailSchema (email only), while its controller/service expects email
+  plus otp. The intended request is { email, otp }; the router validation is
+  currently inconsistent with that controller contract.
+
+Interview endpoints (all require auth + CSRF on non-GET):
+  POST /interviews                          { ...interview config }
+  GET  /interviews
+  GET  /interviews/resumable
+  GET  /interviews/:id
+  GET  /interviews/:id/history
+  GET  /interviews/:id/metrics
+  GET  /interviews/:id/report
+  POST /interviews/:id/start
+  POST /interviews/:id/pause
+  POST /interviews/:id/resume
+  POST /interviews/:id/cancel
+  POST /interviews/:id/end
+  POST /interviews/:id/questions/:questionId/answer
+
+Response envelope (controller responses):
+  Success: { success: true,  statusCode, message, data }
+  Error:   { success: false, statusCode, message, error: { code, ... } }
+  Exceptions: /health, /ping, /ready, and /version return their own health
+  response shapes. The CSRF middleware returns a plain { error: string }
+  response when the CSRF token is missing or mismatched.
+  Error codes are a fixed enum (ROUTE_NOT_FOUND, RESOURCE_NOT_FOUND,
+  VALIDATION_FAILED, AUTH_INVALID_CREDENTIALS, AUTH_UNAUTHORIZED,
+  AUTH_FORBIDDEN, AUTH_SESSION_EXPIRED, RATE_LIMIT_EXCEEDED,
+  INTERVIEW_INVALID_STATE, INTERVIEW_NOT_FOUND, ANSWER_REJECTED,
+  QUESTION_NOT_COMPLETED, INTERNAL_SERVER_ERROR, RESOURCE_ALREADY_EXISTS,
+  RESOURCE_CONFLICT) — branch on `error.code`, never on `message` text.
+
+AUTH MODEL — this is the part most AI tools get wrong, so lock it in:
+  - Access + refresh tokens live in httpOnly cookies set by the server.
+    The frontend NEVER reads, stores, or manages the JWTs themselves.
+  - A separate, NON-httpOnly `csrf_token` cookie is also set. For every unsafe
+    method (POST/PUT/PATCH/DELETE) the client must read that cookie value in JS
+    and send it back as an `X-CSRF-Token` or `X-XSRF-Token` request header.
+    GET/HEAD/OPTIONS need no CSRF header; the middleware explicitly bypasses
+    those methods.
+  - Every fetch/axios call must be made with credentials included
+    (`credentials: 'include'` for fetch, `withCredentials: true` for axios)
+    or cookies won't be sent cross-origin.
+  - On a 401 with error.code AUTH_SESSION_EXPIRED from any call, attempt
+    exactly one POST /auth/refresh, then retry the original request once.
+    If refresh also fails, hard-log-out (clear client state, redirect to
+    /login). Never retry more than once — avoid infinite refresh loops.
+  - There is no "user object with password" stored client-side ever.
+    Source of truth for "who am I" is GET /usr/me, called once on app boot
+    and after login/refresh succeeds.
+  - Registration is two-step: POST /auth/register then POST /auth/verify-otp
+    before the account is usable. Login is NOT automatic after register —
+    the user must verify OTP first, then log in. Registration and OTP
+    verification do not establish the login session; login sets access_token,
+    refresh_token, csrf_token, and device_id cookies.
+
+Health response details:
+  - /health returns { status: "OK" }.
+  - /ping returns { status: "OK", ping: "pong" }.
+  - /ready checks PostgreSQL and Redis and returns { status: "OK"|"DEGRADED", checks }.
+  - /version currently returns only { status: "OK" }; it does not expose APP_VERSION.
+
+WEBSOCKET CONTRACT (Socket.IO v4, path is whatever the server exposes,
+typically default `/socket.io`):
+  - Auth is via the same httpOnly access-token cookie, read by the server
+    from the handshake — the client does NOT pass a token manually, just
+    connect with `withCredentials: true`. If the cookie is missing/expired/
+    blacklisted, the server calls `next(new Error(...))` on the socket
+    middleware and the client gets a `connect_error` with that message.
+  - Every application payload emitted by the server carries `eventVersion: 1`
+    and `event: "<event-name>"`. Client payload types also require these
+    fields. The gateway does not perform runtime schema validation of client
+    payloads.
+  - Client → Server events:
+      "interview:join"        { interviewId }
+      "interview:leave"       { interviewId }
+      "heartbeat:ack"         { eventVersion: 1, event: "heartbeat:ack" }
+      "answer:submit"         { interviewId, questionId, answerData, answerType: 'TEXT'|'AUDIO'|'VIDEO' }
+      "code:submit"           { interviewId, questionId, language, code }
+      "question:next"         { interviewId }
+      "interview:cancel"      { interviewId }
+  - Server → Client events:
+      "interview:joined"        { interviewId, reconnected, timerStartedAt, durationMinutes }
+      "interview:left"          { interviewId }
+      "interview:state_change"  { interviewId, status: DRAFT|READY|SCHEDULED|INPROGRESS|COMPLETED|CANCELLED|ABANDONED|EXPIRED|TIMED_OUT, timestamp }
+      "question:delivered"      { interviewId, questionId, sequenceNumber, totalQuestions, questionTitle, questionDescription?, questionType, deliveredAt, timeoutSeconds }
+      "ai:status"                { interviewId, questionId, stage: 'thinking'|'generating'|'evaluating', timestamp }
+      "evaluation:feedback"     { interviewId, questionId, answerId, score, correctness, relevance, clarity, technicalDepth, feedback, strengths[], weaknesses[], timestamp }
+      "timer:expired"           { interviewId, expiredAt }
+      "heartbeat:ping"          { timestamp }   // client MUST reply with heartbeat:ack
+      "ws:error"                { code, message, interviewId?, timestamp }  // ALWAYS this one event name for errors, never mixed into other events
+
+CURRENT IMPLEMENTATION NOTES:
+  - Socket authentication reads the `access_token` cookie during the handshake;
+    it rejects missing, expired, invalid, or blacklisted tokens before connect.
+  - `interview:join`, `answer:submit`, `code:submit`, `question:next`, and
+    `interview:cancel` require ownership and an INPROGRESS interview. The
+    `interview:leave` event requires ownership but does not require INPROGRESS.
+  - Socket disconnects use a Redis-backed 30-second grace period. Rejoining
+    clears the grace period; otherwise an active interview is paused to
+    SCHEDULED and the state change is broadcast.
+  - `heartbeat:ack` is accepted as a no-op; Socket.IO transport ping/pong is
+    responsible for dead-connection detection.
+  - The gateway does not emit an `ai:status` acknowledgement before
+    `question:delivered`; answer evaluation is started asynchronously by the
+    interview service.
+  - `code:submit` is currently persisted through the TEXT answer path as
+    `[<language>]\n<code>`; no Codebox execution is performed.
+  - `/interviews/:id/report` is available only for COMPLETED interviews and
+    reads or generates the persisted report without an LLM call.
