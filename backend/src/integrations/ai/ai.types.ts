@@ -106,6 +106,38 @@ export interface AiEvaluateResult {
   detectionSignals: DetectionSignal[];
 }
 
+// ── Output validation schemas ─────────────────────────────────────────────────
+// Used to validate raw LLM JSON before it reaches adaptive logic, persistence,
+// or downstream graph nodes. Validation failure throws MALFORMED_RESPONSE so
+// the existing provider fallback loop retries/cycles — no second fallback system.
+
+export const generatedQuestionSchema = z.object({
+  questionTitle: z.string().min(1),
+  questionDescription: z.string().nullable(),
+  questionType: z.enum(["BEHAVIORAL", "TECHNICAL", "MIXED"]),
+});
+
+const detectionSignalSchema = z.enum([
+  "strong",
+  "weak",
+  "vague",
+  "incomplete",
+  "off_topic",
+  "none",
+]);
+
+export const aiEvaluateResultSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  correctness: z.number().int().min(0).max(100),
+  relevance: z.number().int().min(0).max(100),
+  clarity: z.number().int().min(0).max(100),
+  technicalDepth: z.number().int().min(0).max(100),
+  feedback: z.string().min(1),
+  strengths: z.array(z.string()),
+  weaknesses: z.array(z.string()),
+  detectionSignals: z.array(detectionSignalSchema).min(1),
+});
+
 // endAiSession — called when the interview reaches a terminal state.
 // Allows the graph to flush any pending state / LangSmith traces.
 export const aiEndSessionInputSchema = z.object({

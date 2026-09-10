@@ -12,6 +12,10 @@
 import { env } from "../../config/env.js";
 import { logger } from "../../utils/logger.js";
 import { PROVIDER_CONTEXT_WINDOWS } from "./context.manager.js";
+import {
+  generatedQuestionSchema,
+  aiEvaluateResultSchema,
+} from "./ai.types.js";
 import type { GenerateQuestionInput, GeneratedQuestion, AiEvaluateResult } from "./ai.types.js";
 import type { InterviewerPromptResult, EvaluatorPromptResult } from "./prompts.js";
 
@@ -44,12 +48,13 @@ function sleep(ms: number): Promise<void> {
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    sleep(ms).then((): never => {
-      throw new Error("PROVIDER_TIMEOUT");
-    }),
-  ]);
+  let timerId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timerId = setTimeout(() => reject(new Error("PROVIDER_TIMEOUT")), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timerId);
+  });
 }
 
 function parseJsonResponse<T>(raw: string): T {
@@ -158,18 +163,7 @@ const groqProvider: ModelProvider = {
       response_format: { type: "json_object" },
     });
     const raw = res.choices[0]?.message?.content ?? "";
-    const parsed = parseJsonResponse<{
-      questionTitle?: string;
-      questionDescription?: string | null;
-      questionType?: string;
-    }>(raw);
-    if (!parsed.questionTitle) throw new Error("MALFORMED_RESPONSE");
-    return {
-      questionTitle: parsed.questionTitle,
-      questionDescription: parsed.questionDescription ?? null,
-      questionType:
-        (parsed.questionType as GeneratedQuestion["questionType"]) ?? input.config.interviewType,
-    };
+    return parseAndValidateQuestion(raw, input.config.interviewType);
   },
   evaluateAnswer: async (prompt) => {
     const { default: Groq } = await import("groq-sdk");
@@ -210,18 +204,7 @@ const mistralProvider: ModelProvider = {
     });
     const raw = res.choices?.[0]?.message?.content ?? "";
     const rawStr = typeof raw === "string" ? raw : JSON.stringify(raw);
-    const parsed = parseJsonResponse<{
-      questionTitle?: string;
-      questionDescription?: string | null;
-      questionType?: string;
-    }>(rawStr);
-    if (!parsed.questionTitle) throw new Error("MALFORMED_RESPONSE");
-    return {
-      questionTitle: parsed.questionTitle,
-      questionDescription: parsed.questionDescription ?? null,
-      questionType:
-        (parsed.questionType as GeneratedQuestion["questionType"]) ?? input.config.interviewType,
-    };
+    return parseAndValidateQuestion(rawStr, input.config.interviewType);
   },
   evaluateAnswer: async (prompt) => {
     const { Mistral } = await import("@mistralai/mistralai");
@@ -242,40 +225,37 @@ const mistralProvider: ModelProvider = {
   },
 };
 
-// ── Evaluation response parser + validator ────────────────────────────────────
+// ── LLM output parsers + validators ──────────────────────────────────────────
+// Both functions throw MALFORMED_RESPONSE on any validation failure so the
+// existing provider fallback loop (runWithFallback) retries/cycles naturally.
+// No silent coercion — invalid AI output is rejected, not patched.
 
-import type { DetectionSignal } from "./graph.state.js";
-
-const VALID_SIGNALS = new Set<DetectionSignal>([
-  "strong",
-  "weak",
-  "vague",
-  "incomplete",
-  "off_topic",
-  "none",
-]);
+function parseAndValidateQuestion(
+  raw: string,
+  fallbackType: GeneratedQuestion["questionType"],
+): GeneratedQuestion {
+  const json = parseJsonResponse<unknown>(raw);
+  // LLMs sometimes omit questionType — default to the interview type before validating
+  const withDefault =
+    json !== null && typeof json === "object" && !Array.isArray(json)
+      ? { questionType: fallbackType, ...json }
+      : json;
+  const result = generatedQuestionSchema.safeParse(withDefault);
+  if (!result.success) {
+    logger.warn({ issues: result.error.issues }, "[ai] generated question failed validation");
+    throw new Error("MALFORMED_RESPONSE");
+  }
+  return result.data;
+}
 
 function parseAndValidateEvaluation(raw: string): AiEvaluateResult {
-  const parsed = parseJsonResponse<Record<string, unknown>>(raw);
-
-  const clamp = (v: unknown): number => Math.min(100, Math.max(0, Number(v) || 0));
-  const signals: DetectionSignal[] = Array.isArray(parsed.detectionSignals)
-    ? (parsed.detectionSignals as unknown[]).filter((s): s is DetectionSignal =>
-        VALID_SIGNALS.has(s as DetectionSignal),
-      )
-    : ["none"];
-
-  return {
-    score: clamp(parsed.score),
-    correctness: clamp(parsed.correctness),
-    relevance: clamp(parsed.relevance),
-    clarity: clamp(parsed.clarity),
-    technicalDepth: clamp(parsed.technicalDepth),
-    feedback: typeof parsed.feedback === "string" ? parsed.feedback : "No feedback provided.",
-    strengths: Array.isArray(parsed.strengths) ? (parsed.strengths as string[]) : [],
-    weaknesses: Array.isArray(parsed.weaknesses) ? (parsed.weaknesses as string[]) : [],
-    detectionSignals: signals.length > 0 ? signals : ["none"],
-  };
+  const json = parseJsonResponse<unknown>(raw);
+  const result = aiEvaluateResultSchema.safeParse(json);
+  if (!result.success) {
+    logger.warn({ issues: result.error.issues }, "[ai] evaluation result failed validation");
+    throw new Error("MALFORMED_RESPONSE");
+  }
+  return result.data;
 }
 
 // ── Ordered provider chain ────────────────────────────────────────────────────
@@ -310,6 +290,22 @@ function fallbackEvaluation(): AiEvaluateResult {
 
 // ── Core fallback loop ────────────────────────────────────────────────────────
 
+// Auth/config errors are permanent — retrying them wastes quota and time.
+// Network errors, timeouts, rate limits, and malformed responses are retryable.
+function isNonRetryable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message;
+  // Groq/Mistral SDKs surface HTTP status in the message or as a status property
+  return (
+    msg.includes("401") ||
+    msg.includes("403") ||
+    msg.includes("invalid_api_key") ||
+    msg.includes("authentication") ||
+    msg.includes("Unauthorized") ||
+    msg.includes("Forbidden")
+  );
+}
+
 async function runWithFallback<T>(
   operation: (provider: ModelProvider) => Promise<T>,
   fallback: () => T,
@@ -328,6 +324,14 @@ async function runWithFallback<T>(
           { provider: provider.name, attempt, reason, interviewId, op: opName },
           "[ai] provider attempt failed",
         );
+        // Auth/config errors are permanent — skip remaining retries for this provider
+        if (isNonRetryable(err)) {
+          logger.warn(
+            { provider: provider.name, interviewId, op: opName },
+            "[ai] non-retryable error — skipping provider",
+          );
+          break;
+        }
         if (attempt < MAX_RETRIES_PER_PROVIDER) {
           await sleep(BASE_BACKOFF_MS * Math.pow(2, attempt));
         }
