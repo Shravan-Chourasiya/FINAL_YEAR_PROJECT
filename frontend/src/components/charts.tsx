@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 export function Sparkline({
@@ -11,6 +12,22 @@ export function Sparkline({
   stroke?: string
   className?: string
 }) {
+  const geometry = useMemo(() => {
+    if (values.length < 2) return null
+    const w = 240
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const range = max - min || 1
+    const pad = 6
+    const pts = values.map((v, i) => [
+      pad + (i * (w - pad * 2)) / (values.length - 1),
+      pad + (height - pad * 2) * (1 - (v - min) / range),
+    ])
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+    const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${height - pad} L${pts[0][0].toFixed(1)},${height - pad} Z`
+    return { w, pts, line, area }
+  }, [height, values])
+
   if (values.length < 2) {
     return (
       <div
@@ -25,19 +42,7 @@ export function Sparkline({
     )
   }
 
-  const w = 240
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const pad = 6
-  const pts = values.map((v, i) => [
-    pad + (i * (w - pad * 2)) / (values.length - 1),
-    pad + (height - pad * 2) * (1 - (v - min) / range),
-  ])
-  const line = pts
-    .map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
-    .join(' ')
-  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${height - pad} L${pts[0][0].toFixed(1)},${height - pad} Z`
+  const { w, pts, line, area } = geometry!
 
   return (
     <svg
@@ -77,7 +82,7 @@ export function Bars({
   color?: string
   className?: string
 }) {
-  const max = Math.max(...data.map((d) => d.value), 1)
+  const max = useMemo(() => Math.max(...data.map((d) => d.value), 1), [data])
   return (
     <div className={cn('flex items-end gap-3', className)} style={{ height }}>
       {data.map((d) => (

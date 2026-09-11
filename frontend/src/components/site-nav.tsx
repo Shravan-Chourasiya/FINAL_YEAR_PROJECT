@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { BrandMark } from '@/components/brand-mark'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
