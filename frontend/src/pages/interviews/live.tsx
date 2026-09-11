@@ -11,16 +11,14 @@ import {
   InterviewTimer,
   VideoTile,
 } from '@/components/interview-room/widgets'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/stores/auth.store'
-import {
-  interviewEngine,
-  type AIState,
-  type CodeRunState,
-  type ConnectionState,
-} from '@/lib/interview-engine'
-import type { CodeResult, Interview, Question, SignalTone } from '@/lib/types'
+import { useInterviewSocket } from '@/hooks/use-interview-socket'
+import { useLiveInterviewStore } from '@/lib/stores/live-interview.store'
+import type { CodeResult, Interview, SignalTone } from '@/lib/types'
+import type { AIState, ConnectionState } from '@/components/interview-room/widgets'
+import type { CodeRunState } from '@/components/interview-room/coding-panel'
 import { cn } from '@/lib/utils'
 
 const SIGNAL_STRIP: Record<SignalTone, string> = {
@@ -34,30 +32,33 @@ export function LiveRoomPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-
+  const connectionState = useLiveInterviewStore((s) => s.connectionState)
+  const aiStatus = useLiveInterviewStore((s) => s.aiStatus)
+  const currentQuestion = useLiveInterviewStore((s) => s.currentQuestion)
+  const questionNumber = useLiveInterviewStore((s) => s.questionNumber)
+  const totalQuestions = useLiveInterviewStore((s) => s.totalQuestions)
+  const lastEvaluation = useLiveInterviewStore((s) => s.lastEvaluation)
+  const interviewStatus = useLiveInterviewStore((s) => s.interviewStatus)
+  const socketError = useLiveInterviewStore((s) => s.error)
   const [interview, setInterview] = useState<Interview | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [ended, setEnded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [conn, setConn] = useState<ConnectionState>('idle')
-  const [ai, setAi] = useState<AIState>('idle')
-  const [question, setQuestion] = useState<Question | null>(null)
-  const [remaining, setRemaining] = useState(0)
-  const [evaluation, setEvaluation] = useState<{
-    score: number
-    signal: SignalTone
-    feedback: string
-  } | null>(null)
   const [runState, setRunState] = useState<CodeRunState>('idle')
-  const [result, setResult] = useState<CodeResult | null>(null)
+  const [result] = useState<CodeResult | null>(null)
 
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [sharing, setSharing] = useState(false)
   const [endOpen, setEndOpen] = useState(false)
+  const { submitAnswer, submitCode, cancelInterview } = useInterviewSocket(interview?.id)
 
-  const busy =
-    ai === 'evaluating' || ai === 'adapting' || ai === 'preparing' || ai === 'unavailable'
+  const conn = connectionState as ConnectionState
+  const ai = aiStatus === 'thinking' ? 'preparing' : aiStatus === 'generating' ? 'adapting' : aiStatus === 'evaluating' ? 'evaluating' : aiStatus === 'idle' ? 'idle' : 'ready' as AIState
+  const question = currentQuestion
+  const evaluation = lastEvaluation
+  const busy = ai === 'evaluating' || ai === 'adapting' || ai === 'preparing' || ai === 'unavailable'
 
   /* load interview + enforce state rules */
   useEffect(() => {
@@ -72,51 +73,13 @@ export function LiveRoomPage() {
         return
       }
       setInterview(it)
-    })
+    }).catch((err: unknown) => setLoadError(err instanceof Error ? err.message : 'Unable to load live interview.'))
   }, [id])
 
-  /* connect to the engine */
   useEffect(() => {
-    if (!interview) return
-
-    const offs = [
-      interviewEngine.on('conn', setConn),
-      interviewEngine.on('ai', setAi),
-      interviewEngine.on('question', (q) => {
-        setQuestion(q)
-        setEvaluation(null)
-        setRunState('idle')
-        setResult(null)
-      }),
-      interviewEngine.on('tick', setRemaining),
-      interviewEngine.on('evaluation', (ev) => {
-        setEvaluation(ev)
-      }),
-      interviewEngine.on('code', (p) => {
-        setRunState(p.state === 'running' ? 'running' : 'done')
-        if (p.result) setResult(p.result)
-      }),
-      interviewEngine.on('finished', (p) => {
-        navigate(
-          p.reason === 'cancelled'
-            ? `/interviews/${interview.id}`
-            : `/interviews/${interview.id}/completed`,
-          { replace: true },
-        )
-      }),
-    ]
-
-    interviewEngine.connect(interview)
-
-    // demo: one brief network blip to show reconnection behaviour
-    const blip = setTimeout(() => interviewEngine.dropConnection(), 20_000)
-
-    return () => {
-      offs.forEach((off) => off())
-      clearTimeout(blip)
-      interviewEngine.dispose()
-    }
-  }, [interview, navigate])
+    if (interviewStatus === 'CANCELLED' && interview) navigate(`/interviews/${interview.id}`, { replace: true })
+    if (interviewStatus === 'COMPLETED' && interview) navigate(`/interviews/${interview.id}/completed`, { replace: true })
+  }, [interviewStatus, interview, navigate])
 
   if (notFound) return <RoomNotice title="Interview not found" body="This interview doesn't exist or was removed." />
   if (ended)
@@ -134,6 +97,11 @@ export function LiveRoomPage() {
         <p className="font-mono text-xs text-muted-foreground">Loading session…</p>
       </div>
     )
+  }
+  if (loadError) return <RoomNotice title="Interview unavailable" body={loadError} />
+
+  if (socketError && !question) {
+    return <RoomNotice title="Live session unavailable" body={socketError} />
   }
 
   if (!question) {
@@ -153,8 +121,8 @@ export function LiveRoomPage() {
     )
   }
 
-  const qIndex = interviewEngine.index + 1
-  const qTotal = interviewEngine.queue.length
+  const qIndex = questionNumber || 1
+  const qTotal = totalQuestions ?? interview.rounds
 
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
@@ -173,7 +141,7 @@ export function LiveRoomPage() {
         </div>
         <div className="flex shrink-0 items-center gap-4">
           <ConnectionIndicator state={conn} />
-          <InterviewTimer seconds={remaining} />
+          <LiveTimer />
         </div>
       </header>
 
@@ -211,7 +179,10 @@ export function LiveRoomPage() {
                 aiState={ai}
                 result={result}
                 busy={busy}
-                onSubmit={(code) => interviewEngine.submitCode(code)}
+                onSubmit={(code) => {
+                  setRunState('running')
+                  submitCode(question.id, interview.language ?? 'JavaScript', code)
+                }}
               />
             ) : (
               <QuestionPanel
@@ -220,7 +191,7 @@ export function LiveRoomPage() {
                 index={qIndex}
                 total={qTotal}
                 busy={busy}
-                onSubmit={(text) => interviewEngine.submitAnswer(text)}
+                onSubmit={(text) => submitAnswer(question.id, text)}
               />
             )}
           </div>
@@ -280,7 +251,7 @@ export function LiveRoomPage() {
       <EndInterviewDialog
         open={endOpen}
         onClose={() => setEndOpen(false)}
-        onConfirm={() => interviewEngine.cancel()}
+        onConfirm={() => cancelInterview()}
       />
     </div>
   )
@@ -300,4 +271,9 @@ function RoomNotice({ title, body }: { title: string; body: string }) {
       </div>
     </div>
   )
+}
+
+function LiveTimer() {
+  const seconds = useLiveInterviewStore((state) => state.remainingSeconds)
+  return <InterviewTimer seconds={seconds} />
 }

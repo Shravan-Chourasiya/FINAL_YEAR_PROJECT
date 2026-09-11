@@ -1,6 +1,5 @@
 import {
   AlertTriangle,
-  Loader2,
   Mic,
   MicOff,
   Monitor,
@@ -14,8 +13,10 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import type { AIState, ConnectionState } from '@/lib/interview-engine'
 import { cn } from '@/lib/utils'
+
+export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'error'
+export type AIState = 'idle' | 'preparing' | 'evaluating' | 'adapting' | 'ready' | 'unavailable'
 
 /* ---------------- connection indicator (FR-12) ---------------- */
 
@@ -28,6 +29,7 @@ const CONN_META: Record<
   connected: { label: 'Connected', dot: 'bg-[var(--signal-strong)]', text: 'text-[var(--signal-strong)]', pulse: false },
   reconnecting: { label: 'Reconnecting…', dot: 'bg-[var(--signal-vague)]', text: 'text-[var(--signal-vague)]', pulse: true },
   disconnected: { label: 'Disconnected', dot: 'bg-[var(--signal-weak)]', text: 'text-[var(--signal-weak)]', pulse: false },
+  error: { label: 'Connection error', dot: 'bg-[var(--signal-weak)]', text: 'text-[var(--signal-weak)]', pulse: false },
 }
 
 export function ConnectionIndicator({ state }: { state: ConnectionState }) {
@@ -75,12 +77,12 @@ export function AiStatusBar({ state }: { state: AIState }) {
       className={cn(
         'flex items-center gap-2.5 rounded-lg border px-3.5 py-2.5 transition-colors',
         state === 'unavailable'
-          ? 'border-[var(--signal-vague)]/30 bg-[var(--signal-vague)]/5'
+          ? 'border-(--signal-vague)/30 bg-(--signal-vague)/5'
           : 'border-border bg-card',
       )}
     >
       {state === 'unavailable' ? (
-        <AlertTriangle className="size-3.5 shrink-0 text-[var(--signal-vague)]" />
+        <AlertTriangle className="size-3.5 shrink-0 text-signal-vague" />
       ) : busy ? (
         <span className="relative flex size-2 shrink-0">
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/60" />
@@ -93,7 +95,7 @@ export function AiStatusBar({ state }: { state: AIState }) {
         key={state}
         className={cn(
           'animate-fade-in flex-1 font-mono text-[11px]',
-          state === 'unavailable' ? 'text-[var(--signal-vague)]' : 'text-muted-foreground',
+          state === 'unavailable' ? 'text-signal-vague' : 'text-muted-foreground',
         )}
       >
         {AI_LABEL[state]}
@@ -134,7 +136,7 @@ export function InterviewTimer({ seconds }: { seconds: number }) {
       className={cn(
         'rounded-md px-2.5 py-1 font-mono text-sm tabular-nums ring-1 transition-colors',
         warn
-          ? 'bg-[var(--signal-weak)]/10 text-[var(--signal-weak)] ring-[var(--signal-weak)]/30'
+          ? 'bg-(--signal-weak)/10 text-signal-weak ring-(--signal-weak)/30'
           : 'bg-background text-foreground ring-border',
       )}
     >
@@ -164,8 +166,8 @@ export function VideoTile({
   return (
     <div className="relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded-xl border border-border bg-secondary/40">
       {sharing ? (
-        <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5 rounded-md bg-background/80 px-2 py-1 font-mono text-[10px] text-[var(--signal-weak)] ring-1 ring-[var(--signal-weak)]/30">
-          <span className="size-1.5 animate-pulse rounded-full bg-[var(--signal-weak)]" />
+        <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5 rounded-md bg-background/80 px-2 py-1 font-mono text-[10px] text-signal-weak ring-1 ring-(--signal-weak)/30">
+          <span className="size-1.5 animate-pulse rounded-full bg-signal-weak" />
           SHARING
         </span>
       ) : null}
@@ -297,8 +299,8 @@ export function EndInterviewDialog({
     <Dialog open={open} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--signal-weak)]/10 ring-1 ring-[var(--signal-weak)]/30">
-            <PhoneOff className="size-4 text-[var(--signal-weak)]" />
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-(--signal-weak)/10 ring-1 ring-(--signal-weak)/30">
+            <PhoneOff className="size-4 text-signal-weak" />
           </span>
           <div>
             <h2 className="text-base font-semibold tracking-tight">End interview?</h2>

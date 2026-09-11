@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Check, ChevronDown, Play, RotateCcw, Send } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { AIState, CodeRunState } from '@/lib/interview-engine'
 import type { CodeResult, Question } from '@/lib/types'
 import { cn } from '@/lib/utils'
+
+export type AIState = 'idle' | 'preparing' | 'evaluating' | 'adapting' | 'ready' | 'unavailable'
+export type CodeRunState = 'idle' | 'running' | 'done' | 'failed'
 
 export function CodingPanel({
   question,
@@ -120,13 +122,13 @@ export function CodingPanel({
             ) : null}
             {runState === 'done' && result ? (
               <div className="flex flex-col gap-1.5">
-                <p className="text-[var(--signal-strong)]">$ submit solution</p>
+                <p className="text-signal-strong">$ submit solution</p>
                 {Array.from({ length: testTotal }, (_, i) => {
                   const passed = i < testPassed
                   return (
                     <p
                       key={i}
-                      className={passed ? 'text-[var(--signal-strong)]' : 'text-[var(--signal-weak)]'}
+                      className={passed ? 'text-signal-strong' : 'text-signal-weak'}
                     >
                       {passed ? '✓' : '✗'} test case {i + 1}{' '}
                       {passed ? 'passed' : 'failed — edge case'}
@@ -218,7 +220,7 @@ function Track({
         className={cn(
           'flex size-7 shrink-0 items-center justify-center rounded-md ring-1 transition-colors',
           done
-            ? 'bg-[var(--signal-strong)]/10 text-[var(--signal-strong)] ring-[var(--signal-strong)]/30'
+            ? 'bg-(--signal-strong)/10 text-signal-strong ring-(--signal-strong)/30'
             : active
               ? 'bg-primary/15 text-primary ring-primary/30'
               : 'bg-secondary text-muted-foreground ring-border',
@@ -238,7 +240,7 @@ function Track({
           className={cn(
             'truncate text-xs',
             done
-              ? 'text-[var(--signal-strong)]'
+              ? 'text-signal-strong'
               : active
                 ? 'text-foreground'
                 : 'text-muted-foreground',
