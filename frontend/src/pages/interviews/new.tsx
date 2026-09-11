@@ -15,7 +15,7 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { api } from '@/lib/api'
+import { useInterviewListStore } from '@/lib/stores/interview-list.store'
 import type { Difficulty, ExperienceLevel, InterviewType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -85,6 +85,7 @@ const selectCls =
 
 export function NewInterviewPage() {
   const navigate = useNavigate()
+  const createInterview = useInterviewListStore((s) => s.createInterview)
   const [step, setStep] = useState(0)
   const [state, setState] = useState<WizardState>(initialState)
   const [errors, setErrors] = useState<string[]>([])
@@ -126,7 +127,7 @@ export function NewInterviewPage() {
   const create = async () => {
     setCreating(true)
     try {
-      const id = await api.createInterview(state)
+      const id = await createInterview(state)
       navigate(`/interviews/${id}/lobby`)
     } finally {
       setCreating(false)

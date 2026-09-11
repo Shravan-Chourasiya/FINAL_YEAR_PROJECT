@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react'
 import { AppShell } from '@/components/app-shell'
@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DifficultyBadge, RowAction, TypeBadge } from '@/components/interview-ui'
-import { api } from '@/lib/api'
+import { useInterviewListStore } from '@/lib/stores/interview-list.store'
 import { fmtDate } from '@/lib/format'
 import { INTERVIEW_STATUSES, type Interview } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,9 @@ import { cn } from '@/lib/utils'
 const PER_PAGE = 6
 
 export function InterviewsPage() {
-  const [all, setAll] = useState<Interview[] | null>(null)
+  const all = useInterviewListStore((s) => s.interviews)
+  const listStatus = useInterviewListStore((s) => s.status)
+  const fetchInterviews = useInterviewListStore((s) => s.fetchInterviews)
   const [query, setQuery] = useState('')
   const [type, setType] = useState('')
   const [status, setStatus] = useState('')
@@ -22,8 +24,8 @@ export function InterviewsPage() {
   const [page, setPage] = useState(1)
 
   useEffect(() => {
-    api.listInterviews().then(setAll)
-  }, [])
+    void fetchInterviews()
+  }, [fetchInterviews])
 
   useEffect(() => {
     setPage(1)
@@ -52,7 +54,7 @@ export function InterviewsPage() {
     setDifficulty('')
   }
 
-  if (!all) {
+  if (listStatus === 'idle' || listStatus === 'loading') {
     return (
       <AppShell title="Interview History">
         <div className="mx-auto flex max-w-7xl flex-col gap-4" aria-busy="true">
@@ -62,6 +64,10 @@ export function InterviewsPage() {
         </div>
       </AppShell>
     )
+  }
+
+  if (listStatus === 'error') {
+    return <AppShell title="Interview History"><p className="p-6 text-sm text-destructive">Unable to load interview history.</p></AppShell>
   }
 
   return (
@@ -150,7 +156,7 @@ export function InterviewsPage() {
         ) : (
           <div className="overflow-hidden rounded-2xl border border-border bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left">
+              <table className="w-full min-w-190 text-left">
                 <thead>
                   <tr className="border-b border-border bg-secondary/40 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     <th className="px-5 py-3 font-medium">Role</th>
@@ -165,34 +171,7 @@ export function InterviewsPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {slice.map((i) => (
-                    <tr key={i.id} className="text-sm transition-colors hover:bg-accent/40">
-                      <td className="px-5 py-3.5">
-                        <Link
-                          to={`/interviews/${i.id}`}
-                          className="font-medium transition-colors hover:text-primary"
-                        >
-                          {i.roleTitle}
-                        </Link>
-                        <p className="font-mono text-[11px] text-muted-foreground">
-                          {i.company}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3.5"><TypeBadge type={i.type} /></td>
-                      <td className="px-4 py-3.5"><DifficultyBadge difficulty={i.difficulty} /></td>
-                      <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">
-                        {fmtDate(i.createdAt)}
-                      </td>
-                      <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">
-                        {i.durationMin}m
-                      </td>
-                      <td className="px-4 py-3.5"><StatusBadge status={i.status} /></td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums">
-                        {i.score !== null ? i.score : '—'}
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <RowAction interview={i} />
-                      </td>
-                    </tr>
+                    <InterviewHistoryRow key={i.id} interview={i} />
                   ))}
                 </tbody>
               </table>
@@ -228,6 +207,39 @@ export function InterviewsPage() {
     </AppShell>
   )
 }
+
+const InterviewHistoryRow = memo(function InterviewHistoryRow({ interview: i }: { interview: Interview }) {
+  return (
+    <tr className="text-sm transition-colors hover:bg-accent/40">
+      <td className="px-5 py-3.5">
+        <Link
+          to={`/interviews/${i.id}`}
+          className="font-medium transition-colors hover:text-primary"
+        >
+          {i.roleTitle}
+        </Link>
+        <p className="font-mono text-[11px] text-muted-foreground">
+          {i.company}
+        </p>
+      </td>
+      <td className="px-4 py-3.5"><TypeBadge type={i.type} /></td>
+      <td className="px-4 py-3.5"><DifficultyBadge difficulty={i.difficulty} /></td>
+      <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">
+        {fmtDate(i.createdAt)}
+      </td>
+      <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">
+        {i.durationMin}m
+      </td>
+      <td className="px-4 py-3.5"><StatusBadge status={i.status} /></td>
+      <td className="px-4 py-3.5 text-right font-mono tabular-nums">
+        {i.score !== null ? i.score : '—'}
+      </td>
+      <td className="px-5 py-3.5 text-right">
+        <RowAction interview={i} />
+      </td>
+    </tr>
+  )
+})
 
 function FilterSelect({
   label,

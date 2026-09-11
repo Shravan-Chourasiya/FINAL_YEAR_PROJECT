@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, Clock, Hourglass, ListChecks, Play, Plus } from 'lucide-react'
 import { AppShell } from '@/components/app-shell'
@@ -7,31 +7,23 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DifficultyBadge, TypeBadge } from '@/components/interview-ui'
-import { api } from '@/lib/api'
+import { useInterviewListStore } from '@/lib/stores/interview-list.store'
 import { timeAgo } from '@/lib/format'
 import type { Interview } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 export function ResumablePage() {
-  const [list, setList] = useState<Interview[] | null>(null)
+  const interviews = useInterviewListStore((s) => s.interviews)
+  const listStatus = useInterviewListStore((s) => s.status)
+  const fetchInterviews = useInterviewListStore((s) => s.fetchInterviews)
+  const cancelInterview = useInterviewListStore((s) => s.cancelInterview)
   const [target, setTarget] = useState<Interview | null>(null)
 
-  const load = useCallback(() => {
-    api.listInterviews().then((l) =>
-      setList(
-        l.filter(
-          (i) =>
-            i.status === 'IN_PROGRESS' ||
-            i.status === 'CREATED' ||
-            i.status === 'READY',
-        ),
-      ),
-    )
-  }, [])
-
   useEffect(() => {
-    load()
-  }, [load])
+    void fetchInterviews()
+  }, [fetchInterviews])
+
+  const list = interviews.filter((i) => i.status === 'IN_PROGRESS' || i.status === 'CREATED' || i.status === 'READY')
 
   return (
     <AppShell title="Resumable Interviews">
@@ -46,16 +38,18 @@ export function ResumablePage() {
           </p>
         </header>
 
-        {list === null ? (
+        {listStatus === 'idle' || listStatus === 'loading' ? (
           <div className="grid gap-4 md:grid-cols-2" aria-busy="true">
             {[0, 1].map((i) => (
               <Skeleton key={i} className="h-64 rounded-2xl" />
             ))}
           </div>
+        ) : listStatus === 'error' ? (
+          <p className="text-sm text-destructive">Unable to load resumable interviews.</p>
         ) : list.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[var(--signal-strong)]/10 ring-1 ring-[var(--signal-strong)]/30">
-              <CheckCircle2 className="size-6 text-[var(--signal-strong)]" />
+            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-(--signal-strong)/10 ring-1 ring-(--signal-strong)/30">
+              <CheckCircle2 className="size-6 text-signal-strong" />
             </span>
             <h2 className="mt-5 text-lg font-semibold tracking-tight">
               You're all caught up.
@@ -92,7 +86,7 @@ export function ResumablePage() {
         destructive
         onClose={() => setTarget(null)}
         onConfirm={() => {
-          if (target) api.cancelInterview(target.id).then(load)
+          if (target) void cancelInterview(target.id)
         }}
       />
     </AppShell>

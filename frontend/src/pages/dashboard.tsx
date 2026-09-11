@@ -15,8 +15,8 @@ import { StatusBadge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DifficultyBadge, RowAction, TypeBadge } from '@/components/interview-ui'
-import { api } from '@/lib/api'
 import { useAuthStore } from '@/lib/stores/auth.store'
+import { useInterviewListStore } from '@/lib/stores/interview-list.store'
 import { fmtDate } from '@/lib/format'
 import type { Interview } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -34,27 +34,37 @@ interface DashData {
 
 export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
+  const interviews = useInterviewListStore((s) => s.interviews)
+  const interviewStatus = useInterviewListStore((s) => s.status)
+  const fetchInterviews = useInterviewListStore((s) => s.fetchInterviews)
   const [data, setData] = useState<DashData | null>(null)
 
   useEffect(() => {
     let alive = true
-    Promise.all([api.getAnalytics(), api.listInterviews()]).then(([a, list]) => {
-      if (!alive) return
-      setData({
-        average: a.average,
-        best: a.best,
-        total: a.total,
-        completed: a.completed,
-        trend: a.trend,
-        categories: a.categories,
-        recent: list.slice(0, 4),
-        resumable: list.find((i) => i.status === 'IN_PROGRESS') ?? null,
-      })
+    void fetchInterviews()
+    if (!alive) return
+    const completed = interviews.filter((interview) => interview.status === 'COMPLETED')
+    const scores = completed.map((interview) => interview.score).filter((score): score is number => score !== null)
+    const average = scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0
+    const categories = ['Behavioral', 'Technical', 'Coding', 'Mixed'].map((label) => {
+      const matching = completed.filter((interview) => interview.type === label)
+      const values = matching.map((interview) => interview.score).filter((score): score is number => score !== null)
+      return { label, value: values.length ? Math.round(values.reduce((sum, score) => sum + score, 0) / values.length) : 0 }
+    }).filter((category) => category.value > 0)
+    setData({
+      average,
+      best: scores.length ? Math.max(...scores) : 0,
+      total: interviews.length,
+      completed: completed.length,
+      trend: scores.slice(-8),
+      categories,
+      recent: interviews.slice(0, 4),
+      resumable: interviews.find((i) => i.status === 'IN_PROGRESS') ?? null,
     })
     return () => {
       alive = false
     }
-  }, [])
+  }, [fetchInterviews, interviews])
 
   const firstName = (user?.firstName ?? user?.username ?? 'there').split(' ')[0]
   const hour = new Date().getHours()
@@ -63,7 +73,11 @@ export function DashboardPage() {
 
   return (
     <AppShell title="Dashboard">
-      {data ? (
+      {interviewStatus === 'loading' || interviewStatus === 'idle' ? (
+        <DashboardSkeleton />
+      ) : interviewStatus === 'error' ? (
+        <p className="text-sm text-destructive">Unable to load dashboard interviews.</p>
+      ) : data ? (
         <DashboardContent data={data} firstName={firstName} greeting={greeting} />
       ) : (
         <DashboardSkeleton />
