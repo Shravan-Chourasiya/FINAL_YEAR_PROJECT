@@ -74,7 +74,7 @@ export function LoginForm({ onSuccess, showModeLink = true }: { onSuccess: () =>
                 <div className="flex items-center justify-between"><label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-3.5 accent-primary" />Keep me signed in</label><Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div>
                 <Button type="submit" className="mt-1 h-10 w-full" disabled={loading || locked}>{loading ? <><Loader2 className="size-4 animate-spin" />Signing in…</> : locked ? `Locked (${lockSeconds}s)` : 'Sign in'}</Button>
             </form>
-            {showModeLink ? <p className="mt-6 text-center text-xs text-muted-foreground">Demo: any email + a password of 4+ characters. New here? <Link to="/register" className="font-medium text-primary hover:underline">Create an account</Link></p> : null}
+            {showModeLink ? <p className="mt-6 text-center text-xs text-muted-foreground">New here? <Link to="/register" className="font-medium text-primary hover:underline">Create an account</Link></p> : null}
         </div>
     )
 }

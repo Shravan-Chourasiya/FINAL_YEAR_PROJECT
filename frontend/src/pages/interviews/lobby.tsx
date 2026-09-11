@@ -28,6 +28,7 @@ export function LobbyPage() {
   const [interview, setInterview] = useState<Interview | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [ended, setEnded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [checks, setChecks] = useState<Record<string, CheckState>>({})
   const [running, setRunning] = useState(false)
 
@@ -43,7 +44,7 @@ export function LobbyPage() {
         return
       }
       setInterview(it)
-    })
+    }).catch((err: unknown) => setError(err instanceof Error ? err.message : 'Unable to load interview lobby.'))
   }, [id])
 
   const runChecks = useCallback(() => {
@@ -78,6 +79,9 @@ export function LobbyPage() {
         />
       </AppShell>
     )
+  }
+  if (error) {
+    return <AppShell title="Interview Lobby"><p className="p-6 text-sm text-destructive">{error}</p></AppShell>
   }
   if (!interview) {
     return (
@@ -189,9 +193,6 @@ export function LobbyPage() {
                 )
               })}
             </div>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              Demo — permissions are simulated; wire getUserMedia / getDisplayMedia for real checks
-            </p>
           </section>
         </div>
 

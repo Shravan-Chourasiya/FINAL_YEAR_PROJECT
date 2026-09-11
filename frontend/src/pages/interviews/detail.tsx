@@ -28,7 +28,7 @@ const STATUS_ALERT: Record<
 
 export function InterviewDetailPage() {
   const { id } = useParams()
-  const { interview, loading } = useInterview(id)
+  const { interview, loading, error } = useInterview(id)
 
   if (loading) {
     return (
@@ -40,7 +40,7 @@ export function InterviewDetailPage() {
   if (!interview) {
     return (
       <AppShell title="Interview Detail">
-        <InterviewNotFound />
+        {error ? <Alert variant="destructive">{error}</Alert> : <InterviewNotFound />}
       </AppShell>
     )
   }

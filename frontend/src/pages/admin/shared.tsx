@@ -21,6 +21,18 @@ export function AdminGate({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+export function AdminUnavailable() {
+  return (
+    <div className="animate-slide-up mx-auto max-w-2xl pt-8">
+      <ErrorState
+        code="N/A"
+        title="Admin data is not available yet"
+        body="The current backend contract does not expose administrative user or interview endpoints. This screen will remain unavailable until those routes are implemented."
+      />
+    </div>
+  )
+}
+
 const ADMIN_LINKS = [
   { to: '/admin', label: 'Overview', exact: true },
   { to: '/admin/users', label: 'Users', exact: false },

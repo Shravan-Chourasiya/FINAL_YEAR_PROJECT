@@ -13,7 +13,6 @@ import type {
   BackendInterviewStatus,
 } from "./types/api";
 import type {
-  AdminUser,
   Interview,
   InterviewConfig,
   InterviewReport,
@@ -213,38 +212,6 @@ export const api = {
       currentPassword,
       newPassword,
     });
-  },
-
-  // ── Analytics (Phase 2 — returns empty shell) ──────────────────────────────
-
-  async getAnalytics(): Promise<{
-    average: number;
-    best: number;
-    total: number;
-    completed: number;
-    trend: number[];
-    categories: { label: string; value: number }[];
-    strongest: string[];
-    weakest: string[];
-    frequency: unknown[];
-  }> {
-    return {
-      average: 0,
-      best: 0,
-      total: 0,
-      completed: 0,
-      trend: [],
-      categories: [],
-      strongest: [],
-      weakest: [],
-      frequency: [],
-    };
-  },
-
-  // ── Admin (Phase 2 — returns empty shell) ──────────────────────────────────
-
-  async listAdminUsers(): Promise<AdminUser[]> {
-    return [];
   },
 };
 

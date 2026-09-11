@@ -6,7 +6,7 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { api } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import { PasswordChecklist, passwordIsValid } from './password-checklist'
 
 export function ResetPasswordPage() {
@@ -33,6 +33,9 @@ export function ResetPasswordPage() {
       if (!/^\d{6}$/.test(otp)) return setError('Enter the 6-digit verification code.')
       await api.resetPassword(email, otp, password)
       navigate('/login')
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'AUTH_INVALID_CREDENTIALS') setExpired(true)
+      else setError(err instanceof Error ? err.message : 'Unable to reset password.')
     } finally {
       setLoading(false)
     }
@@ -89,13 +92,6 @@ export function ResetPasswordPage() {
           )}
         </Button>
 
-        <button
-          type="button"
-          onClick={() => setExpired(true)}
-          className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-        >
-          Demo: simulate expired token
-        </button>
       </form>
     </AuthLayout>
   )

@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Activity, Code2, ListChecks, Timer } from 'lucide-react'
 import { AppShell } from '@/components/app-shell'
+import { Alert } from '@/components/ui/alert'
 import { Bars } from '@/components/charts'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
 import {
   DetailSkeleton,
   InterviewHeader,
@@ -30,9 +30,10 @@ interface Metrics {
 
 export function InterviewMetricsPage() {
   const { id } = useParams()
-  const { interview, loading } = useInterview(id)
+  const { interview, loading, error: interviewError } = useInterview(id)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [failed, setFailed] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -43,7 +44,10 @@ export function InterviewMetricsPage() {
         if (alive) setMetrics(m as Metrics)
       })
       .catch(() => {
-        if (alive) setFailed(true)
+        if (alive) {
+          setFailed(true)
+          setError('Unable to load interview metrics.')
+        }
       })
     return () => {
       alive = false
@@ -56,6 +60,9 @@ export function InterviewMetricsPage() {
         <DetailSkeleton />
       </AppShell>
     )
+  }
+  if (interviewError || error) {
+    return <AppShell title="Interview Metrics"><Alert variant="destructive">{interviewError ?? error}</Alert></AppShell>
   }
   if (!interview || !metrics) {
     return (

@@ -10,13 +10,14 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { AppShell } from '@/components/app-shell'
+import { Alert } from '@/components/ui/alert'
 import { ScoreRing } from '@/components/charts'
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { DifficultyBadge, TypeBadge } from '@/components/interview-ui'
 import { api } from '@/lib/api'
 import { fmtDate, fmtMinutes } from '@/lib/format'
-import type { Interview, InterviewReport, SignalTone } from '@/lib/types'
+import type { InterviewReport, SignalTone } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import {
   DetailSkeleton,
@@ -34,8 +35,9 @@ const SIGNAL_BADGE: Record<SignalTone, 'strong' | 'good' | 'vague' | 'weak'> = {
 
 export function InterviewReportPage() {
   const { id } = useParams()
-  const { interview, loading } = useInterview(id)
+  const { interview, loading, error: interviewError } = useInterview(id)
   const [report, setReport] = useState<InterviewReport | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -46,7 +48,7 @@ export function InterviewReportPage() {
         if (alive) setReport(r)
       })
       .catch(() => {
-        if (alive) setReport(null)
+        if (alive) setError('Unable to load interview report.')
       })
     return () => {
       alive = false
@@ -59,6 +61,9 @@ export function InterviewReportPage() {
         <DetailSkeleton />
       </AppShell>
     )
+  }
+  if (interviewError || error) {
+    return <AppShell title="Interview Report"><Alert variant="destructive">{interviewError ?? error}</Alert></AppShell>
   }
   if (!interview || !report) {
     return (

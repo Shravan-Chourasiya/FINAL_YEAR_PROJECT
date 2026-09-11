@@ -135,9 +135,6 @@ export function VerifyEmailPage() {
           {cooldown > 0 ? `Resend available in ${cooldown}s` : 'Resend code'}
         </button>
 
-        <p className="text-center font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          Demo — any 6 digits work · 000000 simulates expiry
-        </p>
       </div>
     </AuthLayout>
   )

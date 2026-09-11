@@ -76,6 +76,7 @@ export function InterviewTimelinePage() {
   const { id } = useParams()
   const { interview, loading } = useInterview(id)
   const [events, setEvents] = useState<TimelineEvent[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -83,7 +84,10 @@ export function InterviewTimelinePage() {
     api.getHistory(id).then((ev) => {
       if (alive) setEvents(ev)
     }).catch(() => {
-      if (alive) setEvents([])
+      if (alive) {
+        setEvents([])
+        setError('Unable to load interview history.')
+      }
     })
     return () => {
       alive = false
@@ -96,6 +100,9 @@ export function InterviewTimelinePage() {
         <DetailSkeleton />
       </AppShell>
     )
+  }
+  if (error) {
+    return <AppShell title="Event Timeline"><p className="p-6 text-sm text-destructive">{error}</p></AppShell>
   }
   if (!interview) {
     return (

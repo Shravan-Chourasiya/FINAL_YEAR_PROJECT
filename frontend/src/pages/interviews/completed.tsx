@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Award, FileText, LayoutGrid, Loader2, Plus } from 'lucide-react'
 import { ScoreRing } from '@/components/charts'
+import { Alert } from '@/components/ui/alert'
 import { buttonVariants } from '@/components/ui/button'
 import { DifficultyBadge, TypeBadge } from '@/components/interview-ui'
 import { api } from '@/lib/api'
@@ -13,11 +14,15 @@ export function CompletedPage() {
   const { id } = useParams()
   const [interview, setInterview] = useState<Interview | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
     api.getInterview(id).then((it) => {
       setInterview(it)
+      setLoaded(true)
+    }).catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : 'Unable to load completed interview.')
       setLoaded(true)
     })
   }, [id])
@@ -28,6 +33,10 @@ export function CompletedPage() {
         <Loader2 className="size-5 animate-spin text-primary" />
       </div>
     )
+  }
+
+  if (error) {
+    return <div className="mx-auto max-w-2xl p-8"><Alert variant="destructive">{error}</Alert></div>
   }
 
   if (!interview || interview.status !== 'COMPLETED') {

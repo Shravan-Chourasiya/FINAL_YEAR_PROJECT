@@ -44,7 +44,7 @@ export function ForgotPasswordPage() {
           </p>
           <Link to="/reset-password" state={{ email }} className="w-full">
             <Button variant="outline" className="h-10 w-full">
-              Open demo reset link
+              Continue to password reset
             </Button>
           </Link>
           <Link to="/login" className="font-mono text-xs text-muted-foreground hover:text-foreground">

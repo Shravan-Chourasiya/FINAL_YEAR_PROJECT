@@ -15,6 +15,7 @@ export type DetailTab = 'overview' | 'history' | 'metrics' | 'report'
 export function useInterview(id: string | undefined) {
   const [interview, setInterview] = useState<Interview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) {
@@ -26,13 +27,17 @@ export function useInterview(id: string | undefined) {
       if (!alive) return
       setInterview(it)
       setLoading(false)
+    }).catch((err: unknown) => {
+      if (!alive) return
+      setError(err instanceof Error ? err.message : 'Unable to load interview.')
+      setLoading(false)
     })
     return () => {
       alive = false
     }
   }, [id])
 
-  return { interview, loading }
+  return { interview, loading, error }
 }
 
 export function InterviewHeader({
