@@ -9,6 +9,24 @@ import type {
 } from "../types/api";
 import type { InterviewConfig, TimelineEvent } from "../types";
 
+const TARGET_COMPANIES = new Set([
+  "Google",
+  "Microsoft",
+  "Amazon",
+  "Meta",
+  "Apple",
+  "Netflix",
+  "OpenAI",
+  "Nvidia",
+  "TCS",
+  "Infosys",
+  "JPMorgan",
+  "Wipro",
+  "Deloitte",
+  "Adobe",
+  "Anthropic",
+]);
+
 // ── List ──────────────────────────────────────────────────────────────────────
 
 export function listInterviews(): Promise<InterviewResponse[]> {
@@ -26,7 +44,30 @@ export function resumableInterviews(): Promise<InterviewResponse[]> {
 export function createInterview(
   body: InterviewConfig,
 ): Promise<CreateInterviewResponse> {
-  return httpPost<CreateInterviewResponse>(ENDPOINTS.interviews.create, body);
+  const experience =
+    body.experienceLevel === "Senior"
+      ? "senior"
+      : body.experienceLevel === "Mid-level"
+        ? "mid-level"
+        : "fresher";
+  const difficulty = body.difficulty === "Easy" || body.difficulty === "Hard" ? body.difficulty.toUpperCase() : "MEDIUM";
+  const interviewType = body.type === "Behavioral" ? "BEHAVIORAL" : body.type === "Technical" ? "TECHNICAL" : "MIXED";
+  const minimumDuration = interviewType === "BEHAVIORAL" ? 20 : interviewType === "TECHNICAL" ? 30 : 40;
+
+  return httpPost<CreateInterviewResponse>(ENDPOINTS.interviews.create, {
+    jobrole: body.roleTitle,
+    experience,
+    jobSkills: body.topics,
+    difficulty,
+    interviewStyle: "FAANG",
+    interviewType,
+    duration: Math.max(body.durationMin, minimumDuration),
+    maxFollowUps: Math.max(0, Math.min(5, body.rounds)),
+    isScheduled: false,
+    ...(body.company && TARGET_COMPANIES.has(body.company)
+      ? { targetedCompany: body.company }
+      : {}),
+  });
 }
 
 // ── Get by ID ─────────────────────────────────────────────────────────────────

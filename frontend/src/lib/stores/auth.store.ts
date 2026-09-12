@@ -27,7 +27,7 @@ interface AuthActions {
     password: string,
     deviceType?: "desktop" | "mobile" | "tablet",
   ) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, username: string, email: string, password: string) => Promise<void>;
   verifyOtp: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   _clear: () => void;
@@ -90,13 +90,13 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => {
 
     // ── register ──────────────────────────────────────────────────────────────
     // Does NOT log the user in — OTP verification is required first.
-    async register(name, email, password) {
+    async register(name, username, email, password) {
       set({ error: null });
       const [firstName, ...rest] = name.trim().split(/\s+/);
       await authSvc.register({
         email,
         password,
-        username: email.split("@")[0] ?? email,
+        username,
         firstName,
         ...(rest.length > 0 ? { lastName: rest.join(" ") } : {}),
       });

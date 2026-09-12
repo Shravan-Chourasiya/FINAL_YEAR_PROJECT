@@ -6,11 +6,10 @@ import { ApiError } from "./http";
 import * as authSvc from "./services/auth.service";
 import * as interviewSvc from "./services/interview.service";
 import { ENDPOINTS } from "./constants/endpoints";
+import { normalizeInterview } from "./normalizers/interview";
 import type {
-  InterviewResponse,
   MeResponse,
   SessionResponse,
-  BackendInterviewStatus,
 } from "./types/api";
 import type {
   Interview,
@@ -41,29 +40,6 @@ function normalizeUser(u: MeResponse): User {
   };
 }
 
-function normalizeStatus(s: BackendInterviewStatus): Interview["status"] {
-  if (s === "INPROGRESS") return "IN_PROGRESS";
-  if (s === "DRAFT") return "CREATED";
-  if (s === "TIMED_OUT" || s === "EXPIRED") return "ABANDONED";
-  if (s === "SCHEDULED") return "READY";
-  return s as Interview["status"];
-}
-
-function normalizeInterview(i: InterviewResponse): Interview {
-  return {
-    ...(i as unknown as Interview),
-    id: i.id,
-    userId: i.userId,
-    status: normalizeStatus(i.status),
-    createdAt: i.createdAt,
-    lastActivityAt: i.lastActivityAt ?? i.createdAt,
-    progress: (i.progress as number | undefined) ?? 0,
-    score: (i.score as number | null | undefined) ?? null,
-    currentRound: (i.currentRound as number | undefined) ?? 1,
-    currentQuestion: (i.currentQuestion as number | undefined) ?? 0,
-  };
-}
-
 function normalizeSession(s: SessionResponse): Session {
   return {
     id: s.id,
@@ -84,13 +60,13 @@ export const api = {
     return normalizeUser(await authSvc.me());
   },
 
-  async register(name: string, email: string, password: string): Promise<void> {
+  async register(name: string, username: string, email: string, password: string): Promise<void> {
     const [firstName, ...rest] = name.trim().split(/\s+/);
     pendingEmailValue = email;
     await authSvc.register({
       email,
       password,
-      username: email.split("@")[0] ?? email,
+      username,
       firstName,
       ...(rest.length > 0 ? { lastName: rest.join(" ") } : {}),
     });
@@ -179,6 +155,10 @@ export const api = {
     return interviewSvc.cancelInterview(id);
   },
 
+  async startInterview(id: string): Promise<void> {
+    return interviewSvc.startInterview(id);
+  },
+
   async getReport(id: string): Promise<InterviewReport> {
     const data = await interviewSvc.getInterviewReport(id);
     return data as unknown as InterviewReport;
@@ -212,6 +192,10 @@ export const api = {
       currentPassword,
       newPassword,
     });
+  },
+
+  async deleteAccount(): Promise<void> {
+    return authSvc.deleteAccount();
   },
 };
 

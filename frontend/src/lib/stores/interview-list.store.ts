@@ -1,35 +1,9 @@
 import { create } from "zustand";
 import * as interviewService from "../services/interview.service";
-import type { BackendInterviewStatus } from "../types/api";
 import type { Interview, InterviewConfig } from "../types";
+import { normalizeInterview } from "../normalizers/interview";
 
 const CACHE_TTL_MS = 30_000;
-
-function normalizeStatus(status: BackendInterviewStatus): Interview["status"] {
-  if (status === "INPROGRESS") return "IN_PROGRESS";
-  if (status === "DRAFT") return "CREATED";
-  if (status === "SCHEDULED") return "READY";
-  if (status === "TIMED_OUT" || status === "EXPIRED") return "ABANDONED";
-  return status as Interview["status"];
-}
-
-function normalizeInterview(
-  value: Awaited<ReturnType<typeof interviewService.listInterviews>>[number],
-): Interview {
-  const raw = value as typeof value & Partial<Interview>;
-  return {
-    ...raw,
-    id: value.id,
-    userId: value.userId,
-    status: normalizeStatus(value.status),
-    createdAt: value.createdAt,
-    lastActivityAt: value.lastActivityAt ?? value.createdAt,
-    progress: raw.progress ?? 0,
-    score: raw.score ?? null,
-    currentRound: raw.currentRound ?? 1,
-    currentQuestion: raw.currentQuestion ?? 0,
-  } as Interview;
-}
 
 type InterviewListState = {
   interviews: Interview[];

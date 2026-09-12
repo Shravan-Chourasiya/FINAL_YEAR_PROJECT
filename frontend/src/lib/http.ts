@@ -1,11 +1,11 @@
-// Thin fetch wrapper. Only this file may perform raw fetch calls.
-// All other modules use the typed helpers exported at the bottom.
-
+import axios, {
+  type AxiosError,
+  type AxiosInstance,
+  type InternalAxiosRequestConfig,
+} from "axios";
 import { HTTP_BASE_URL } from "./env";
 import { ENDPOINTS } from "./constants/endpoints";
 import type { ErrorCode } from "./types/api";
-
-// ── ApiError ──────────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
   readonly code: ErrorCode | string;
@@ -19,83 +19,44 @@ export class ApiError extends Error {
   }
 }
 
-// ── Auth-expired callback ─────────────────────────────────────────────────────
-
+type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 type AuthExpiredCallback = () => void;
-let _onAuthExpired: AuthExpiredCallback | undefined;
+let onAuthExpired: AuthExpiredCallback | undefined;
+let refreshInFlight: Promise<void> | null = null;
 
-/** Wire this from the auth store so http.ts stays framework-agnostic. */
-export function setOnAuthExpired(cb: AuthExpiredCallback): void {
-  _onAuthExpired = cb;
+export function setOnAuthExpired(callback: AuthExpiredCallback): void {
+  onAuthExpired = callback;
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 function getCookie(name: string): string | null {
   const entry = document.cookie
     .split("; ")
-    .find((c) => c.startsWith(`${name}=`));
+    .find((cookie) => cookie.startsWith(`${name}=`));
   return entry ? decodeURIComponent(entry.slice(name.length + 1)) : null;
 }
 
-async function parseBody(res: Response): Promise<unknown> {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return text;
-  }
+function isUnsafe(method?: string): boolean {
+  return !["GET", "HEAD", "OPTIONS"].includes((method ?? "GET").toUpperCase());
 }
 
-// ── Core request ──────────────────────────────────────────────────────────────
+function canRefresh(url?: string): boolean {
+  const path = url ?? "";
+  return path !== ENDPOINTS.auth.refresh && !path.startsWith("/auth/");
+}
 
-async function request<T>(
-  path: string,
-  method: string,
-  body?: unknown,
-  isRetry = false,
-): Promise<T> {
-  const headers = new Headers({ Accept: "application/json" });
+function toApiError(error: unknown): ApiError {
+  const axiosError = error as AxiosError<{ message?: string; error?: { code?: string } }>;
+  const response = axiosError.response;
+  const body = response?.data;
+  return new ApiError(
+    body?.error?.code ?? `HTTP_${response?.status ?? 500}`,
+    body?.message ?? axiosError.message ?? "Request failed",
+    response?.status ?? 500,
+  );
+}
 
-  if (body !== undefined) headers.set("Content-Type", "application/json");
-
-  if (!SAFE_METHODS.has(method.toUpperCase())) {
-    const csrf = getCookie("csrf_token");
-    if (csrf) headers.set("X-CSRF-Token", csrf);
-  }
-
-  const res = await fetch(`${HTTP_BASE_URL}${path}`, {
-    method,
-    headers,
-    credentials: "include",
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  const payload = await parseBody(res);
-
-  // ── One-time refresh-and-retry on AUTH_SESSION_EXPIRED ────────────────────
-  if (
-    res.status === 401 &&
-    !isRetry &&
-    path !== ENDPOINTS.auth.refresh &&
-    (payload as { error?: { code?: string } } | null)?.error?.code ===
-      "AUTH_SESSION_EXPIRED"
-  ) {
-    try {
-      await request<unknown>(ENDPOINTS.auth.refresh, "POST", undefined, true);
-      return request<T>(path, method, body, true);
-    } catch {
-      _onAuthExpired?.();
-      throw buildError(payload, res);
-    }
-  }
-
-  if (!res.ok) throw buildError(payload, res);
-
-  // Unwrap standard envelope { success, statusCode, message, data }
+function unwrap<T>(response: { data: unknown }): T {
+  const payload = response.data;
   if (
     payload !== null &&
     typeof payload === "object" &&
@@ -105,35 +66,66 @@ async function request<T>(
   ) {
     return (payload as { data: T }).data;
   }
-
   return payload as T;
 }
 
-function buildError(payload: unknown, res: Response): ApiError {
-  const body = payload as
-    | { message?: string; error?: { code?: string } }
-    | null;
-  return new ApiError(
-    body?.error?.code ?? `HTTP_${res.status}`,
-    body?.message ?? res.statusText,
-    res.status,
-  );
-}
+export const axiosInstance: AxiosInstance = axios.create({
+  baseURL: HTTP_BASE_URL,
+  withCredentials: true,
+  headers: { Accept: "application/json" },
+});
 
-// ── Typed helpers ─────────────────────────────────────────────────────────────
+const refreshClient = axios.create({
+  baseURL: HTTP_BASE_URL,
+  withCredentials: true,
+  headers: { Accept: "application/json" },
+});
+
+axiosInstance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (isUnsafe(config.method)) {
+    const csrf = getCookie("csrf_token");
+    if (csrf) config.headers.set("X-CSRF-Token", csrf);
+  }
+  return config;
+});
+
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const config = error.config as RetryableConfig | undefined;
+    if (error.response?.status === 401 && config && !config._retry && canRefresh(config.url)) {
+      config._retry = true;
+      try {
+        if (!refreshInFlight) {
+          refreshInFlight = refreshClient
+            .post(ENDPOINTS.auth.refresh)
+            .then(() => undefined)
+            .finally(() => {
+              refreshInFlight = null;
+            });
+        }
+        await refreshInFlight;
+        return axiosInstance.request(config);
+      } catch {
+        onAuthExpired?.();
+      }
+    }
+    return Promise.reject(toApiError(error));
+  },
+);
 
 export function httpGet<T>(path: string): Promise<T> {
-  return request<T>(path, "GET");
+  return axiosInstance.get(path).then(unwrap<T>);
 }
 
 export function httpPost<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>(path, "POST", body);
+  return axiosInstance.post(path, body).then(unwrap<T>);
 }
 
 export function httpPut<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>(path, "PUT", body);
+  return axiosInstance.put(path, body).then(unwrap<T>);
 }
 
 export function httpDelete<T>(path: string): Promise<T> {
-  return request<T>(path, "DELETE");
+  return axiosInstance.delete(path).then(unwrap<T>);
 }
