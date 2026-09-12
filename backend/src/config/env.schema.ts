@@ -23,7 +23,9 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().min(1).default("llama-3.1-8b-instant"),
   MISTRAL_API_KEY: z.string().optional(),
+  MISTRAL_MODEL: z.string().min(1).default("mistral-small-latest"),
 });
 
 export default envSchema;

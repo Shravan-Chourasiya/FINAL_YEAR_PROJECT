@@ -37,7 +37,7 @@ export const RateLimits = {
   /** Interview creation and management */
   INTERVIEW: {
     windowMs: 1 * 60 * 1000, // 1 min
-    limit: 1,
+    limit: 50,
   },
   CREATE_INTERVIEW: {
     windowMs: 60 * 60 * 1000, // 1 hour
@@ -47,7 +47,7 @@ export const RateLimits = {
   /** AI-powered endpoints — expensive, tightly limited */
   AI: {
     windowMs: 60 * 60 * 1000, // 1 hour
-    limit: 10,
+    limit: 20,
   },
 } as const;
 

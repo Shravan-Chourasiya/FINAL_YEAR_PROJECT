@@ -22,6 +22,8 @@ backend/docs/temp/postgres-init.md
 
 *.sql
 *.json
+!backend/docs/postman/
+!backend/docs/postman/*.json
 backend/docs/review.txt
 backend/Untitled-1.txt
 backend/TODOS.txt

@@ -145,6 +145,10 @@ const stubProvider: ModelProvider = {
 
 // ── Groq provider ─────────────────────────────────────────────────────────────
 
+// Qwen 3.x exposes reasoning tokens. Hide them and disable reasoning when
+// JSON mode is enabled so the response budget is reserved for valid JSON.
+const isGroqQwenReasoningModel = /^qwen\/qwen3\.[68]-27b$/i.test(env.GROQ_MODEL);
+
 const groqProvider: ModelProvider = {
   name: "groq",
   contextWindowTokens: PROVIDER_CONTEXT_WINDOWS.groq!,
@@ -153,7 +157,7 @@ const groqProvider: ModelProvider = {
     const { default: Groq } = await import("groq-sdk");
     const client = new Groq({ apiKey: env.GROQ_API_KEY });
     const res = await client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: env.GROQ_MODEL,
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
@@ -161,6 +165,7 @@ const groqProvider: ModelProvider = {
       temperature: 0.7,
       max_tokens: 512,
       response_format: { type: "json_object" },
+      ...(isGroqQwenReasoningModel ? { reasoning_format: "hidden", reasoning_effort: "none" } : {}),
     });
     const raw = res.choices[0]?.message?.content ?? "";
     return parseAndValidateQuestion(raw, input.config.interviewType);
@@ -169,7 +174,7 @@ const groqProvider: ModelProvider = {
     const { default: Groq } = await import("groq-sdk");
     const client = new Groq({ apiKey: env.GROQ_API_KEY });
     const res = await client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+      model: env.GROQ_MODEL,
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
@@ -177,6 +182,7 @@ const groqProvider: ModelProvider = {
       temperature: 0.3,
       max_tokens: 1024,
       response_format: { type: "json_object" },
+      ...(isGroqQwenReasoningModel ? { reasoning_format: "hidden", reasoning_effort: "none" } : {}),
     });
     const raw = res.choices[0]?.message?.content ?? "";
     return parseAndValidateEvaluation(raw);
@@ -193,7 +199,7 @@ const mistralProvider: ModelProvider = {
     const { Mistral } = await import("@mistralai/mistralai");
     const client = new Mistral({ apiKey: env.MISTRAL_API_KEY });
     const res = await client.chat.complete({
-      model: "mistral-small-latest",
+      model: env.MISTRAL_MODEL,
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
@@ -210,7 +216,7 @@ const mistralProvider: ModelProvider = {
     const { Mistral } = await import("@mistralai/mistralai");
     const client = new Mistral({ apiKey: env.MISTRAL_API_KEY });
     const res = await client.chat.complete({
-      model: "mistral-small-latest",
+      model: env.MISTRAL_MODEL,
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
