@@ -31,6 +31,7 @@ export function LobbyPage() {
   const [error, setError] = useState<string | null>(null)
   const [checks, setChecks] = useState<Record<string, CheckState>>({})
   const [running, setRunning] = useState(false)
+  const [starting, setStarting] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -62,6 +63,21 @@ export function LobbyPage() {
   useEffect(() => {
     if (interview) runChecks()
   }, [interview, runChecks])
+
+  const enterInterview = async () => {
+    if (!interview) return
+    setStarting(true)
+    try {
+      if (interview.status !== 'IN_PROGRESS') {
+        await api.startInterview(interview.id)
+      }
+      navigate(`/interviews/${interview.id}/live`)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to start interview.')
+    } finally {
+      setStarting(false)
+    }
+  }
 
   if (notFound) {
     return (
@@ -170,7 +186,7 @@ export function LobbyPage() {
                       className={cn(
                         'flex size-9 shrink-0 items-center justify-center rounded-lg ring-1 transition-colors',
                         state === 'ready'
-                          ? 'bg-[var(--signal-strong)]/10 text-[var(--signal-strong)] ring-[var(--signal-strong)]/30'
+                          ? 'bg-(--signal-strong)/10 text-signal-strong ring-(--signal-strong)/30'
                           : 'bg-secondary text-muted-foreground ring-border',
                       )}
                     >
@@ -209,11 +225,11 @@ export function LobbyPage() {
             <Button
               size="lg"
               className="h-11 px-5"
-              disabled={!allReady || running}
-              onClick={() => navigate(`/interviews/${interview.id}/live`)}
+              disabled={!allReady || running || starting}
+              onClick={() => void enterInterview()}
             >
-              <Play className="size-4" />
-              {resuming ? 'Resume Interview' : 'Start Interview'}
+              {starting ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+              {starting ? 'Starting…' : resuming ? 'Resume Interview' : 'Start Interview'}
             </Button>
           </div>
         </div>

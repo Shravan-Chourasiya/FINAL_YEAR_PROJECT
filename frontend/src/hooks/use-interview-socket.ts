@@ -199,8 +199,10 @@ export function useInterviewSocket(
     );
     socket.on(
       SOCKET_EVENTS.server.evaluationFeedback,
-      (payload: EvaluationFeedbackPayload) =>
-        store.getState().applyEvaluation(evaluationFromPayload(payload)),
+      (payload: EvaluationFeedbackPayload) => {
+        store.getState().applyEvaluation(evaluationFromPayload(payload));
+        store.getState().setAiStatus("idle");
+      },
     );
     socket.on(
       SOCKET_EVENTS.server.timerExpired,
@@ -261,6 +263,7 @@ export function useInterviewSocket(
     ) => {
       if (!interviewId) return;
       store.getState().appendTranscript(answerData);
+      store.getState().setAiStatus("evaluating");
       emit(SOCKET_EVENTS.client.answerSubmit, {
         interviewId,
         questionId,
@@ -274,6 +277,7 @@ export function useInterviewSocket(
   const submitCode = useCallback(
     (questionId: string, language: string, code: string) => {
       if (!interviewId) return;
+      store.getState().setAiStatus("evaluating");
       emit(SOCKET_EVENTS.client.codeSubmit, {
         interviewId,
         questionId,

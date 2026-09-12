@@ -1,3 +1,4 @@
+import * as React from 'react'
 import {
   AlertTriangle,
   Mic,
@@ -151,11 +152,19 @@ export function VideoTile({
   cameraOn,
   sharing,
   name,
+  stream,
 }: {
   cameraOn: boolean
   sharing: boolean
   name: string
+  stream?: MediaStream | null
 }) {
+  const videoRef = React.useRef<HTMLVideoElement>(null)
+
+  React.useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream ?? null
+  }, [stream])
+
   const ini = name
     .split(' ')
     .map((p) => p[0])
@@ -165,6 +174,9 @@ export function VideoTile({
 
   return (
     <div className="relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded-xl border border-border bg-secondary/40">
+      {stream && cameraOn ? (
+        <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 size-full object-cover" />
+      ) : null}
       {sharing ? (
         <span className="absolute left-2.5 top-2.5 flex items-center gap-1.5 rounded-md bg-background/80 px-2 py-1 font-mono text-[10px] text-signal-weak ring-1 ring-(--signal-weak)/30">
           <span className="size-1.5 animate-pulse rounded-full bg-signal-weak" />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Activity, Loader2 } from 'lucide-react'
 import { CodingPanel } from '@/components/interview-room/coding-panel'
@@ -51,8 +51,11 @@ export function LiveRoomPage() {
   const [cameraOn, setCameraOn] = useState(true)
   const [micOn, setMicOn] = useState(true)
   const [sharing, setSharing] = useState(false)
+  const [mediaError, setMediaError] = useState<string | null>(null)
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null)
+  const screenStreamRef = useRef<MediaStream | null>(null)
   const [endOpen, setEndOpen] = useState(false)
-  const { submitAnswer, submitCode, cancelInterview } = useInterviewSocket(interview?.id)
+  const { submitAnswer, submitCode, requestNextQuestion, cancelInterview } = useInterviewSocket(interview?.id)
 
   const conn = connectionState as ConnectionState
   const ai = aiStatus === 'thinking' ? 'preparing' : aiStatus === 'generating' ? 'adapting' : aiStatus === 'evaluating' ? 'evaluating' : aiStatus === 'idle' ? 'idle' : 'ready' as AIState
@@ -75,6 +78,69 @@ export function LiveRoomPage() {
       setInterview(it)
     }).catch((err: unknown) => setLoadError(err instanceof Error ? err.message : 'Unable to load live interview.'))
   }, [id])
+
+  useEffect(() => {
+    if (!interview || !navigator.mediaDevices?.getUserMedia) return
+    let active = true
+    void navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        if (!active) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+        setMediaStream(stream)
+        setMediaError(null)
+      })
+      .catch(() => {
+        if (active) setMediaError('Camera and microphone permission was denied or unavailable.')
+      })
+    return () => {
+      active = false
+      mediaStream?.getTracks().forEach((track) => track.stop())
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop())
+    }
+  }, [interview])
+
+  const toggleCamera = () => {
+    const track = mediaStream?.getVideoTracks()[0]
+    if (track) {
+      track.enabled = !cameraOn
+      setCameraOn(track.enabled)
+    }
+  }
+
+  const toggleMic = () => {
+    const track = mediaStream?.getAudioTracks()[0]
+    if (track) {
+      track.enabled = !micOn
+      setMicOn(track.enabled)
+    }
+  }
+
+  const toggleScreenShare = async () => {
+    if (sharing) {
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop())
+      screenStreamRef.current = null
+      setSharing(false)
+      return
+    }
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setMediaError('Screen sharing is not supported by this browser.')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      screenStreamRef.current = stream
+      setSharing(true)
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        screenStreamRef.current = null
+        setSharing(false)
+      })
+    } catch {
+      setMediaError('Screen sharing was cancelled or permission was denied.')
+    }
+  }
 
   useEffect(() => {
     if (interviewStatus === 'CANCELLED' && interview) navigate(`/interviews/${interview.id}`, { replace: true })
@@ -167,6 +233,18 @@ export function LiveRoomPage() {
             </div>
           ) : null}
 
+          {evaluation ? (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                onClick={requestNextQuestion}
+              >
+                Next question
+              </button>
+            </div>
+          ) : null}
+
           <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl border border-border bg-card p-5 sm:p-6">
             {question.kind === 'code' ? (
               <CodingPanel
@@ -199,7 +277,8 @@ export function LiveRoomPage() {
 
         {/* side panel */}
         <aside className="flex flex-col gap-3 lg:min-h-0 lg:overflow-y-auto">
-          <VideoTile cameraOn={cameraOn} sharing={sharing} name={user ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username : 'Candidate'} />
+          <VideoTile cameraOn={cameraOn} sharing={sharing} stream={mediaStream} name={user ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.username : 'Candidate'} />
+          {mediaError ? <p className="text-xs text-signal-weak">{mediaError}</p> : null}
 
           <div className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center justify-between">
@@ -242,9 +321,9 @@ export function LiveRoomPage() {
         cameraOn={cameraOn}
         micOn={micOn}
         sharing={sharing}
-        onToggleCamera={() => setCameraOn((v) => !v)}
-        onToggleMic={() => setMicOn((v) => !v)}
-        onToggleShare={() => setSharing((v) => !v)}
+        onToggleCamera={toggleCamera}
+        onToggleMic={toggleMic}
+        onToggleShare={() => void toggleScreenShare()}
         onEnd={() => setEndOpen(true)}
       />
 

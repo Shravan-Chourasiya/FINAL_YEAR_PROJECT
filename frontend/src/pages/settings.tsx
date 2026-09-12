@@ -194,7 +194,7 @@ export function SettingsPage() {
         destructive
         onClose={() => setDeleteOpen(false)}
         onConfirm={() => {
-          void logout().then(() => navigate('/'))
+          void api.deleteAccount().then(() => logout()).then(() => navigate('/'))
         }}
       />
     </AppShell>
