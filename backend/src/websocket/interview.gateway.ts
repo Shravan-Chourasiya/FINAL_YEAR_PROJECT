@@ -264,7 +264,7 @@ export function registerInterviewGateway(io: IoServer): void {
           const fakeAuthReq = { auth: { userId: socket.data.userId } } as Parameters<
             typeof submitAnswerService
           >[0];
-          await submitAnswerService(fakeAuthReq, interviewId, { questionId, answerData, answerType });
+          await submitAnswerService(fakeAuthReq, interviewId, { questionId, answerData, answerType }, io);
           logger.info({ socketId: socket.id, interviewId, questionId }, "[ws] answer submitted");
         } catch (err) {
           const code = toWsErrorCode(err);
@@ -287,7 +287,7 @@ export function registerInterviewGateway(io: IoServer): void {
             questionId,
             answerData: `[${language}]\n${code}`,
             answerType: "TEXT",
-          });
+          }, io);
           logger.info(
             { socketId: socket.id, interviewId, questionId, language },
             "[ws] code submitted",

@@ -1,0 +1,247 @@
+{
+  "info": {
+    "name": "SyntheView API - Complete REST Suite",
+    "_postman_id": "syntheview-api-complete-v1",
+    "description": "Ordered Postman collection for the complete SyntheView REST API. Import this file, select the collection, and set the collection variables before running.\n\nSequence notes:\n1. Start the backend at {{baseUrl}}.\n2. Run Register, then enter the email OTP into {{registrationOtp}} before running Verify Registration OTP.\n3. Run Login. Postman stores cookies automatically and the collection script stores csrfToken.\n4. Run Create Interview before the interview requests. The collection stores interviewId from the response.\n5. For Submit Answer, enter a real question UUID into {{questionId}} after the interview has generated questions.\n6. Enter OTPs manually for password reset, account recovery, and email update requests.\n\nProtected requests use cookie authentication. Mutating protected requests automatically receive the x-csrf-token header from {{csrfToken}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "apiVersion", "value": "api/v1" },
+    { "key": "email", "value": "john.doe+test@gmail.com" },
+    { "key": "password", "value": "Password1" },
+    { "key": "newPassword", "value": "NewPassword1" },
+    { "key": "username", "value": "john_doe_test" },
+    { "key": "registrationOtp", "value": "123456" },
+    { "key": "passwordResetOtp", "value": "123456" },
+    { "key": "recoveryOtp", "value": "123456" },
+    { "key": "emailUpdateOtp", "value": "123456" },
+    { "key": "newEmail", "value": "john.doe.updated+test@gmail.com" },
+    { "key": "csrfToken", "value": "" },
+    { "key": "sessionId", "value": "" },
+    { "key": "interviewId", "value": "" },
+    { "key": "questionId", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const csrf = pm.cookies.get('csrf_token') || pm.collectionVariables.get('csrfToken');",
+          "if (csrf && !['GET', 'HEAD', 'OPTIONS'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({ key: 'x-csrf-token', value: csrf });",
+          "  pm.collectionVariables.set('csrfToken', csrf);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health",
+      "item": [
+        { "name": "Health", "request": { "method": "GET", "url": "{{baseUrl}}/health" } },
+        { "name": "Ping", "request": { "method": "GET", "url": "{{baseUrl}}/ping" } },
+        { "name": "Readiness", "request": { "method": "GET", "url": "{{baseUrl}}/ready" } },
+        { "name": "Version", "request": { "method": "GET", "url": "{{baseUrl}}/version" } }
+      ]
+    },
+    {
+      "name": "02 - Registration and Login",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"username\": \"{{username}}\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/register"
+          },
+          "description": "Creates the account and sends the registration OTP. Use a unique email/username for each run."
+        },
+        {
+          "name": "Verify Registration OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{registrationOtp}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/verify-otp"
+          },
+          "description": "Enter the real six-digit OTP in registrationOtp before sending."
+        },
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "if (pm.response.code >= 200 && pm.response.code < 300) {",
+            "  const body = pm.response.json();",
+            "  const data = body.data || {};",
+            "  const csrf = pm.cookies.get('csrf_token') || data.csrfToken;",
+            "  if (csrf) pm.collectionVariables.set('csrfToken', csrf);",
+            "  if (data.sessionId) pm.collectionVariables.set('sessionId', data.sessionId);",
+            "  pm.test('Login succeeded', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+            "}"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"deviceType\": \"desktop\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/login"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "if (pm.response.code >= 200 && pm.response.code < 300) {",
+            "  const data = (pm.response.json().data || {});",
+            "  const csrf = pm.cookies.get('csrf_token') || data.csrfToken;",
+            "  if (csrf) pm.collectionVariables.set('csrfToken', csrf);",
+            "}"
+          ] } }],
+          "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/auth/refresh" },
+          "description": "Uses the refresh_token cookie stored by Postman."
+        }
+      ]
+    },
+    {
+      "name": "03 - Authenticated Account",
+      "item": [
+        { "name": "Get Current User", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/usr/me" } },
+        {
+          "name": "List Sessions",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "if (pm.response.code === 200) {",
+            "  const data = pm.response.json().data;",
+            "  const sessions = Array.isArray(data) ? data : (data && data.sessions) || [];",
+            "  if (sessions[0] && sessions[0].id) pm.collectionVariables.set('sessionId', sessions[0].id);",
+            "}"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/usr/sessions" }
+        },
+        {
+          "name": "Update Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"currentPassword\": \"{{password}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/usr/update-password"
+          }
+        },
+        {
+          "name": "Request Email Update OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{newEmail}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/usr/update-email"
+          }
+        },
+        {
+          "name": "Verify Email Update OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{newEmail}}\",\n  \"otp\": \"{{emailUpdateOtp}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/usr/update-email/verify"
+          },
+          "description": "Enter the real email-update OTP."
+        },
+        { "name": "Delete Session by ID", "request": { "method": "DELETE", "url": "{{baseUrl}}/{{apiVersion}}/usr/session/{{sessionId}}" } },
+        { "name": "Delete All Sessions", "request": { "method": "DELETE", "url": "{{baseUrl}}/{{apiVersion}}/usr/sessions" }, "description": "Destructive: revokes all sessions. Run only when intended." },
+        { "name": "Logout", "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/usr/logout" } }
+      ]
+    },
+    {
+      "name": "04 - Password and Account Recovery",
+      "item": [
+        {
+          "name": "Request Forgot Password OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/forgot-password"
+          }
+        },
+        {
+          "name": "Verify Forgot Password OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{passwordResetOtp}}\",\n  \"newPassword\": \"{{newPassword}}\",\n  \"confirmPassword\": \"{{newPassword}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/forgot-password/verify"
+          },
+          "description": "Enter the real password-reset OTP."
+        },
+        {
+          "name": "Request Account Recovery OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/recover-account"
+          }
+        },
+        {
+          "name": "Verify Account Recovery OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{recoveryOtp}}\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/auth/recover-account/verify"
+          },
+          "description": "Enter the real recovery OTP."
+        }
+      ]
+    },
+    {
+      "name": "05 - Interviews",
+      "item": [
+        {
+          "name": "Create Interview",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "if (pm.response.code >= 200 && pm.response.code < 300) {",
+            "  const data = pm.response.json().data || {};",
+            "  const id = data.id || data.interviewId || (data.interview && data.interview.id);",
+            "  if (id) pm.collectionVariables.set('interviewId', id);",
+            "}"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"jobrole\": \"Software Engineer\",\n  \"experience\": \"junior\",\n  \"jobSkills\": [\"TypeScript\", \"Node.js\"],\n  \"difficulty\": \"MEDIUM\",\n  \"interviewStyle\": \"FAANG\",\n  \"interviewType\": \"MIXED\",\n  \"duration\": 40,\n  \"maxFollowUps\": 3,\n  \"isScheduled\": false,\n  \"targetedCompany\": \"Google\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/interviews"
+          }
+        },
+        { "name": "List Interviews", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/interviews" } },
+        { "name": "List Resumable Interviews", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/interviews/resumable" } },
+        { "name": "Get Interview", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}" } },
+        { "name": "Delete Interview", "request": { "method": "DELETE", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}" }, "description": "Permanently deletes the interview in any state and its related data." },
+        { "name": "Get Interview History", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/history" } },
+        { "name": "Get Interview Metrics", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/metrics" } },
+        { "name": "Get Interview Report", "request": { "method": "GET", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/report" } },
+        { "name": "Start Interview", "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/start" } },
+        { "name": "Pause Interview", "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/pause" } },
+        { "name": "Resume Interview", "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/resume" } },
+        {
+          "name": "Submit Answer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"questionId\": \"{{questionId}}\",\n  \"answerData\": \"I would solve this by first clarifying the requirements, then designing and testing the solution.\",\n  \"answerType\": \"TEXT\"\n}" },
+            "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/questions/{{questionId}}/answer"
+          },
+          "description": "Set questionId to a real question UUID delivered for this interview."
+        },
+        { "name": "End Interview", "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/end" } },
+        { "name": "Cancel Interview", "request": { "method": "POST", "url": "{{baseUrl}}/{{apiVersion}}/interviews/{{interviewId}}/cancel" }, "description": "Terminal action. Run this on a separate fresh interview if the interview was already ended." }
+      ]
+    },
+    {
+      "name": "06 - Destructive",
+      "item": [
+        { "name": "Delete Account", "request": { "method": "DELETE", "url": "{{baseUrl}}/{{apiVersion}}/usr/account" }, "description": "Destructive: permanently deletes the authenticated account. Run manually only." }
+      ]
+    }
+  ]
+}

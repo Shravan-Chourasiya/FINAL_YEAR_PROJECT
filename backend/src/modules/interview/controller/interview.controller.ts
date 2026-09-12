@@ -6,6 +6,7 @@ import {
   createInterviewService,
   getAllInterviewsService,
   getInterviewByIdService,
+  deleteInterviewService,
   getInterviewMetricsService,
   getInterviewHistoryService,
   getInterviewReportService,
@@ -72,6 +73,26 @@ export const getInterviewByIdController = async (
       statusCode: StatusCodes.OK,
       message: "Interview retrieved successfully.",
       data,
+    };
+    res.status(StatusCodes.OK).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteInterviewController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const authreq = req as AuthenticatedRequest;
+    await deleteInterviewService(authreq, String(req.params.id));
+    const response: SuccessResponse = {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: "Interview deleted successfully.",
+      data: null,
     };
     res.status(StatusCodes.OK).json(response);
   } catch (error) {

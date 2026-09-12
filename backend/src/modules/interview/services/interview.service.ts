@@ -160,7 +160,9 @@ export async function createInterviewService(
         ...(interviewData.jobSkills?.length ? { jobSkills: interviewData.jobSkills } : {}),
         maxFollowUps: interviewData.maxFollowUps,
       },
-      interviewStatus: "DRAFT",
+      // Unscheduled interviews can be started immediately. Scheduled
+      // interviews remain drafts until they are explicitly prepared/scheduled.
+      interviewStatus: interviewData.isScheduled ? "DRAFT" : "READY",
       isInterviewScheduled: interviewData.isScheduled,
       interviewScheduledDate: interviewData.isScheduled ? interviewData.scheduledDate : null,
     })
@@ -194,6 +196,51 @@ export async function getInterviewByIdService(authreq: AuthenticatedRequest, int
   }
 
   return interview;
+}
+
+/**
+ * Permanently removes an interview regardless of its current state.
+ * Database foreign keys cascade the related questions, answers, evaluations,
+ * and result rows. Redis cleanup is best-effort so stale cache data cannot
+ * prevent the database deletion.
+ */
+export async function deleteInterviewService(
+  authreq: AuthenticatedRequest,
+  interviewId: string,
+) {
+  const interview = await resolveInterview(authreq, interviewId);
+
+  if (interview.interviewStatus === "INPROGRESS") {
+    const context = await readInterviewContext(interviewId).catch(() => null);
+    if (context?.aiContext.threadId) {
+      await endAiSession({
+        interviewId,
+        threadId: context.aiContext.threadId,
+        reason: "CANCELLED",
+      }).catch((err) => {
+        logger.warn({ err, interviewId }, "[ai] failed to end session during interview deletion");
+      });
+    }
+  }
+
+  await Promise.all([
+    deleteInterviewContext(interviewId).catch((err) => {
+      logger.warn({ err, interviewId }, "[redis] failed to delete interview context");
+    }),
+    discardLookahead(interviewId).catch((err) => {
+      logger.warn({ err, interviewId }, "[redis] failed to delete interview lookahead");
+    }),
+  ]);
+
+  const db = getPgDb();
+  const [deleted] = await db
+    .delete(interviewsTable)
+    .where(
+      and(eq(interviewsTable.id, interviewId), eq(interviewsTable.userId, authreq.auth.userId)),
+    )
+    .returning({ id: interviewsTable.id });
+
+  return deleted;
 }
 
 export async function getResumableInterviewsService(authreq: AuthenticatedRequest) {
@@ -811,6 +858,7 @@ export async function submitAnswerService(
   authreq: AuthenticatedRequest,
   interviewId: string,
   payload: { questionId: string; answerData: string; answerType: "TEXT" | "AUDIO" | "VIDEO" },
+  io?: IoServer,
 ) {
   const interview = await resolveInterview(authreq, interviewId);
 
@@ -900,6 +948,15 @@ export async function submitAnswerService(
 
       if (!question) return;
 
+      io?.to(`interview:${interviewId}`).emit("ai:status", {
+        eventVersion: EVENT_VERSION,
+        event: "ai:status",
+        interviewId,
+        questionId: payload.questionId,
+        stage: "evaluating",
+        timestamp: new Date().toISOString(),
+      });
+
       const evalResult = await evaluateAnswer({
         interviewId,
         threadId: context.aiContext.threadId,
@@ -932,6 +989,23 @@ export async function submitAnswerService(
         .update(interviewQuestionsTable)
         .set({ questionState: "EVALUATED" })
         .where(eq(interviewQuestionsTable.id, payload.questionId));
+
+      io?.to(`interview:${interviewId}`).emit("evaluation:feedback", {
+        eventVersion: EVENT_VERSION,
+        event: "evaluation:feedback",
+        interviewId,
+        questionId: payload.questionId,
+        answerId: answer!.id,
+        score: evalResult.score,
+        correctness: evalResult.correctness,
+        relevance: evalResult.relevance,
+        clarity: evalResult.clarity,
+        technicalDepth: evalResult.technicalDepth,
+        feedback: evalResult.feedback,
+        strengths: evalResult.strengths,
+        weaknesses: evalResult.weaknesses,
+        timestamp: new Date().toISOString(),
+      });
 
       // ── Step 3: Update performance state ─────────────────────────────────
       const historyEntry = {

@@ -10,6 +10,7 @@ import {
   createInterviewController,
   getAllInterviewsController,
   getInterviewByIdController,
+  deleteInterviewController,
   getInterviewMetricsController,
   getInterviewHistoryController,
   getInterviewReportController,
@@ -93,6 +94,15 @@ export function createInterviewRouter() {
     InterviewLimiter,
     requireInterviewOwnership,
     getInterviewReportController,
+  );
+
+  router.delete(
+    "/interviews/:id",
+    requireAuth,
+    csrfTokenMiddleware,
+    InterviewLimiter,
+    requireInterviewOwnership,
+    deleteInterviewController,
   );
 
   router.post(
